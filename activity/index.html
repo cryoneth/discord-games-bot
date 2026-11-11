@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+    <title>Sketch Party</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div id="round" class="pill">Lobby</div>
+        <div id="hint" class="hint"></div>
+        <div id="timer" class="pill timer"></div>
+      </header>
+
+      <main class="layout">
+        <aside class="panel players">
+          <h2>Players</h2>
+          <ol id="players"></ol>
+        </aside>
+
+        <section class="stage">
+          <div class="canvas-wrap">
+            <canvas id="canvas" width="1000" height="750"></canvas>
+            <div id="overlay" class="overlay"></div>
+          </div>
+          <div id="toolbar" class="toolbar hidden">
+            <div id="colors" class="colors"></div>
+            <div id="widths" class="widths"></div>
+            <button id="undo" class="tool" type="button" title="Undo">↶ Undo</button>
+            <button id="clear" class="tool danger" type="button" title="Clear">🗑 Clear</button>
+          </div>
+        </section>
+
+        <aside class="panel chat">
+          <h2>Guesses</h2>
+          <ul id="messages"></ul>
+          <form id="guess-form" autocomplete="off">
+            <input id="guess" maxlength="60" placeholder="Type your guess…" enterkeyhint="send" />
+          </form>
+        </aside>
+      </main>
+    </div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,13 @@
+{
+	# No access logs are configured anywhere, so visitor IPs are never written to disk.
+	admin off
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+	reverse_proxy bot:3000
+}
