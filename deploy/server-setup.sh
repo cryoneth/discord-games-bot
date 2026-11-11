@@ -36,5 +36,5 @@ Host github-discord-games
   IdentityFile /root/.ssh/discord_games_deploy
   IdentitiesOnly yes
 EOF
-ssh-keyscan -q github.com >> /root/.ssh/known_hosts 2>/dev/null
+ssh-keyscan -q github.com >> /root/.ssh/known_hosts 2>/dev/null || echo "(ssh-keyscan failed; git will accept the GitHub host key on first clone)"
 echo "DEPLOY_PUBLIC_KEY: $(cat /root/.ssh/discord_games_deploy.pub)"
