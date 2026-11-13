@@ -1,5 +1,5 @@
 # ── Build ──────────────────────────────────────────────────────────────────
-FROM node:22-alpine AS build
+FROM node:25-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
@@ -12,7 +12,7 @@ RUN npm run build && npm prune --omit=dev --ignore-scripts
 RUN node --input-type=module -e "const { celebrationGif } = await import('./dist/render/animate.js'); const { bannerScene } = await import('./dist/render/boards.js'); const s = bannerScene('OK', 'render check', '#fff'); const b = celebrationGif(s.draw, s.w, s.h, 2); if (b.subarray(0, 6).toString() !== 'GIF89a') process.exit(1); console.log('render check ok', b.length);"
 
 # ── Runtime ────────────────────────────────────────────────────────────────
-FROM node:22-alpine
+FROM node:25-alpine
 ENV NODE_ENV=production \
     DATA_DIR=/data \
     PORT=3000
