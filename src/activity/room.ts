@@ -16,7 +16,7 @@ import {
   type ServerMessage,
   type StateMessage,
   type StrokeChunk,
-} from '../shared/protocol.js';
+} from '../shared/sketch.js';
 import { shuffle } from '../util/random.js';
 
 export interface Conn {
@@ -39,6 +39,8 @@ export interface RoomResult {
 
 export interface RoomHooks {
   onGameEnd(room: Room, results: RoomResult[]): void;
+  /** Who the host is, when the room runs inside a hub. */
+  hostId?(): string | null;
 }
 
 export interface RoomTiming {
@@ -146,6 +148,11 @@ export class Room {
     return this.phase;
   }
 
+  /** Between games, so the host may switch to another game. */
+  get idle(): boolean {
+    return this.phase === 'lobby' || this.phase === 'finished';
+  }
+
   /** Returns false if the room is full. */
   join(user: { id: string; name: string }, conn: Conn): boolean {
     let player = this.players.get(user.id);
@@ -202,6 +209,11 @@ export class Room {
     switch (msg.t) {
       case 'start':
         return this.start(userId);
+      case 'end':
+        if (this.idle || !this.isHost(userId)) return;
+        this.system(`${player.name} ended the game.`);
+        this.toLobby();
+        return;
       case 'settings':
         return this.updateSettings(userId, msg.settings);
       case 'pick':
@@ -249,6 +261,7 @@ export class Room {
   }
 
   private hostId(): string | null {
+    if (this.hooks.hostId) return this.hooks.hostId();
     return this.order.find((id) => (this.players.get(id)?.conns.size ?? 0) > 0) ?? null;
   }
 

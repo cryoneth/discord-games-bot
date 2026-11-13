@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { cleanText, levenshtein, normalizeGuess, Room, validStroke, type RoomResult } from '../src/activity/room.js';
-import { estimateMinutes, validSettings, type ServerMessage, type StateMessage } from '../src/shared/protocol.js';
+import { estimateMinutes, validSettings, type ServerMessage, type StateMessage } from '../src/shared/sketch.js';
 
 // secondMs: 4 → a 45 s draw lasts 180 ms, a 5 min limit lasts 1.2 s.
 const fast = { chooseMs: 50, revealMs: 20, secondMs: 4 };

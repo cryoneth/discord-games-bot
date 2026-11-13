@@ -1,6 +1,6 @@
 import { Client, Events, GatewayIntentBits, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
 import { startWebServer } from './activity/server.js';
-import { handleDraw, handleLeaderboard, handlePrivacy, handleServerData } from './commands/meta.js';
+import { handleLaunch, handleLeaderboard, handlePrivacy, handleServerData } from './commands/meta.js';
 import { loadConfig } from './config.js';
 import { handleFourInARow, handleTicTacToe } from './games/boardgames.js';
 import { handleRoyale } from './games/royale.js';
@@ -41,8 +41,9 @@ async function route(interaction: ChatInputCommandInteraction): Promise<void> {
       return handleRps(interaction, { store });
     case 'wouldyourather':
       return handleWouldYouRather(interaction);
+    case 'play':
     case 'draw':
-      return handleDraw(interaction);
+      return handleLaunch(interaction);
     case 'leaderboard':
       return handleLeaderboard(interaction, store);
     case 'privacy':

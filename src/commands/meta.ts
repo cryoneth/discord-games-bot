@@ -22,11 +22,21 @@ const GAME_CHOICES: { name: string; value: GameId }[] = [
   { name: 'Tic-tac-toe', value: 'tictactoe' },
   { name: 'Four in a row', value: 'fourinarow' },
   { name: 'Rock paper scissors', value: 'rps' },
+  { name: 'Odd One Out', value: 'oddoneout' },
+  { name: 'Forbidden Words', value: 'forbidden' },
+  { name: 'Quiz Arena', value: 'quiz' },
+  { name: 'Perp Arena', value: 'market' },
 ];
 
+export const playCommand = new SlashCommandBuilder()
+  .setName('play')
+  .setDescription('Open the party games Activity: drawing, Odd One Out, Forbidden Words, quizzes, trading sim')
+  .setContexts(InteractionContextType.Guild);
+
+/** Kept for people used to it; opens the same Activity. */
 export const drawCommand = new SlashCommandBuilder()
   .setName('draw')
-  .setDescription('Launch the drawing & guessing game right here in Discord')
+  .setDescription('Open the games Activity (Sketch Party and more)')
   .setContexts(InteractionContextType.Guild);
 
 export const leaderboardCommand = new SlashCommandBuilder()
@@ -40,7 +50,7 @@ export const privacyCommand = new SlashCommandBuilder()
   .setDescription('See and control what this bot stores about you')
   .addSubcommand((s) => s.setName('info').setDescription('What data the bot keeps, and for how long'))
   .addSubcommand((s) => s.setName('my-data').setDescription('Show every record the bot has about you'))
-  .addSubcommand((s) => s.setName('forget-me').setDescription('Delete all of your scores on every server'))
+  .addSubcommand((s) => s.setName('forget-me').setDescription('Delete all of your scores and quizzes on every server'))
   .addSubcommand((s) => s.setName('opt-out').setDescription('Stop recording your scores (and delete existing ones)'))
   .addSubcommand((s) => s.setName('opt-in').setDescription('Allow your scores to be recorded again'));
 
@@ -51,13 +61,13 @@ export const serverDataCommand = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .addSubcommand((s) => s.setName('wipe').setDescription('Permanently delete all scores recorded for this server'));
 
-export async function handleDraw(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function handleLaunch(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
     await interaction.launchActivity();
   } catch (err) {
     log.warn('launchActivity failed', err);
     await interaction.reply({
-      content: "I couldn't launch the drawing game here. Join a voice channel and pick it from the 🚀 Activities menu.",
+      content: "I couldn't launch the games here. Join a voice channel and pick them from the 🚀 Activities menu.",
       flags: MessageFlags.Ephemeral,
     });
   }
@@ -75,7 +85,7 @@ export async function handleLeaderboard(interaction: ChatInputCommandInteraction
       title: `🏆 Leaderboard · ${label}`,
       body: rows.length
         ? rows.map((r, i) => `${medals[i] ?? `\`${String(i + 1).padStart(2)}\``} <@${r.user_id}> · **${r.points}** pts · ${r.wins} 🏅 · ${r.games_played} played`).join('\n')
-        : 'No scores yet. Try `/trivia start`, `/wordguess start`, `/tictactoe` or `/draw`!',
+        : 'No scores yet. Try `/play`, `/trivia start`, `/wordguess start` or `/tictactoe`!',
       footer: 'Scores expire after a period of inactivity · /privacy for your data',
     }),
   );
@@ -85,12 +95,13 @@ export function privacyText(retentionDays: number): string {
   return [
     '**What this bot stores**',
     '• Your Discord user ID with your score totals, wins and games played, separately for each server.',
-    `• Nothing else. Scores not updated for **${retentionDays} days** are deleted automatically.`,
+    '• Quizzes you write in Quiz Arena, with your user ID as the author, so only you can edit or delete them.',
+    `• Nothing else. Scores not updated, and quizzes not edited or played, for **${retentionDays} days** are deleted automatically.`,
     '',
     "**What it never stores or sees**",
     '• Chat messages: the bot cannot read your server\'s messages at all (no Message Content access).',
-    '• Drawings, guesses and in-game chat are kept in memory only and discarded when the game ends.',
-    '• Email, IP addresses, server lists or your Discord access token. The drawing Activity only asks for your username and avatar, and uses it once to confirm who you are.',
+    '• Drawings, guesses, clues, votes, trades and in-game chat are kept in memory only and discarded when the game ends.',
+    '• Email, IP addresses, server lists or your Discord access token. The games Activity only asks for your username and avatar, and uses it once to confirm who you are.',
     '',
     '**Your controls**',
     '`/privacy my-data` see your records · `/privacy forget-me` delete them · `/privacy opt-out` stop tracking',
@@ -106,16 +117,25 @@ export async function handlePrivacy(interaction: ChatInputCommandInteraction, st
       await interaction.reply({ embeds: [new EmbedBuilder().setColor(0x5865f2).setTitle('🔒 Privacy').setDescription(privacyText(retentionDays))], ...ephemeral });
       return;
     case 'my-data': {
-      const { rows, optedOut } = store.userData(userId);
+      const { rows, quizzes, optedOut } = store.userData(userId);
       const body = {
         user_id: userId,
         opted_out: optedOut,
         scores: rows.map((r) => ({ server_id: r.guild_id, game: r.game, points: r.points, wins: r.wins, games_played: r.games_played, last_updated: new Date(r.updated_at).toISOString() })),
+        quizzes: quizzes.map((q) => ({
+          server: q.scope,
+          title: q.title,
+          created: new Date(q.created_at).toISOString(),
+          last_edited: new Date(q.updated_at).toISOString(),
+          last_played: new Date(q.used_at).toISOString(),
+          ...(JSON.parse(q.data) as object),
+        })),
       };
       const text = JSON.stringify(body, null, 2);
+      const any = rows.length || quizzes.length || optedOut;
       await interaction.reply({
-        content: rows.length || optedOut ? 'Here is everything stored about you:' : 'No data is stored about you.',
-        files: rows.length || optedOut ? [{ attachment: Buffer.from(text), name: 'my-data.json' }] : [],
+        content: any ? 'Here is everything stored about you:' : 'No data is stored about you.',
+        files: any ? [{ attachment: Buffer.from(text), name: 'my-data.json' }] : [],
         ...ephemeral,
       });
       return;
@@ -146,7 +166,7 @@ export async function handleServerData(interaction: ChatInputCommandInteraction,
     new ButtonBuilder().setCustomId('wipe:cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
   );
   const reply = await interaction.reply({
-    content: '⚠️ This permanently deletes **every score recorded on this server**. Continue?',
+    content: '⚠️ This permanently deletes **every score and every custom quiz on this server**. Continue?',
     components: [row],
     flags: MessageFlags.Ephemeral,
     withResponse: true,

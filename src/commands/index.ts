@@ -4,7 +4,7 @@ import { rpsCommand } from '../games/rps.js';
 import { triviaCommand } from '../games/trivia.js';
 import { wordguessCommand } from '../games/wordguess.js';
 import { wyrCommand } from '../games/wyr.js';
-import { drawCommand, leaderboardCommand, privacyCommand, serverDataCommand } from './meta.js';
+import { drawCommand, leaderboardCommand, playCommand, privacyCommand, serverDataCommand } from './meta.js';
 
 export const commands = [
   triviaCommand,
@@ -14,6 +14,7 @@ export const commands = [
   fourInARowCommand,
   rpsCommand,
   wyrCommand,
+  playCommand,
   drawCommand,
   leaderboardCommand,
   privacyCommand,

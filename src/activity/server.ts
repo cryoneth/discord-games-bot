@@ -5,14 +5,18 @@ import { fileURLToPath } from 'node:url';
 import { EmbedBuilder, type Client } from 'discord.js';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { Config } from '../config.js';
-import { LIMITS, type ClientMessage, type ServerMessage } from '../shared/protocol.js';
+import { gameInfo, HUB_LIMITS, type ClientMessage, type GameId, type ServerMessage } from '../shared/protocol.js';
 import type { ScoreStore } from '../store.js';
 import { log } from '../util/log.js';
 import { TokenBucket } from '../util/ratelimit.js';
-import { cleanText, Room, type RoomResult } from './room.js';
+import { gameFactory } from './games/index.js';
+import { Hub, type HubConn } from './hub.js';
+import { cleanText, type RoomResult } from './room.js';
 
 const STATIC_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
 const MAX_ROOMS = 1000;
+/** Inner game messages that carry free text get a stricter rate limit. */
+const TEXT_MESSAGES = new Set(['guess', 'chat', 'clue']);
 const MAX_CONNS_PER_USER = 3;
 const HELLO_TIMEOUT_MS = 10_000;
 const ROOM_IDLE_MS = 2 * 60_000;
@@ -51,7 +55,7 @@ interface Deps {
 }
 
 export function startWebServer({ config, store, discord }: Deps) {
-  const rooms = new Map<string, Room>();
+  const rooms = new Map<string, Hub>();
   const tokenBuckets = new Map<string, TokenBucket>();
   const allowedOrigin = `https://${config.clientId}.discordsays.com`;
   const isProd = process.env.NODE_ENV === 'production';
@@ -190,7 +194,7 @@ export function startWebServer({ config, store, discord }: Deps) {
 
   // ── WebSocket game connections ───────────────────────────────────────────
 
-  const wss = new WebSocketServer({ noServer: true, maxPayload: LIMITS.maxMessageBytes });
+  const wss = new WebSocketServer({ noServer: true, maxPayload: HUB_LIMITS.maxMessageBytes });
 
   server.on('upgrade', (req, socket, head) => {
     const path = new URL(req.url ?? '/', 'http://localhost').pathname.replace(/^\/\.proxy(?=\/)/, '');
@@ -204,28 +208,31 @@ export function startWebServer({ config, store, discord }: Deps) {
     wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
   });
 
-  const onGameEnd = (room: Room, results: RoomResult[]) => {
-    store.record(room.guildId, 'drawing', results);
-    if (!room.channelId || results.length === 0) return;
+  const onGameEnd = (hub: Hub, game: GameId, results: RoomResult[]) => {
+    store.record(hub.guildId, game, results);
+    if (!hub.channelId || results.length === 0) return;
+    const info = gameInfo(game);
     void (async () => {
-      const channel = await discord.channels.fetch(room.channelId!).catch(() => null);
+      const channel = await discord.channels.fetch(hub.channelId!).catch(() => null);
       if (!channel || !channel.isSendable()) return;
       const medals = ['🥇', '🥈', '🥉'];
       await channel.send({
         embeds: [
           new EmbedBuilder()
             .setColor(0x57f287)
-            .setTitle('🎨 Drawing game results')
+            .setTitle(`${info.emoji} ${info.name} results`)
             .setDescription(
               results
                 .slice(0, 10)
-                .map((r, i) => `${medals[i] ?? `**${i + 1}.**`} <@${r.userId}> — ${r.points} pts`)
+                .map((r, i) => `${medals[i] ?? `**${i + 1}.**`} <@${r.userId}> · ${r.points} pts`)
                 .join('\n'),
             ),
         ],
       });
-    })().catch((err) => log.warn('Could not post drawing results', err));
+    })().catch((err) => log.warn(`Could not post ${game} results`, err));
   };
+
+  const createGame = gameFactory({ store, onGameEnd });
 
   interface Identity {
     id: string;
@@ -256,11 +263,11 @@ export function startWebServer({ config, store, discord }: Deps) {
     const send = (msg: ServerMessage) => {
       if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
     };
-    const conn = { send };
+    const conn: HubConn = { send };
     const bucket = new TokenBucket(60, 40);
     const guessBucket = new TokenBucket(3, 1.5);
     let identity: Identity | null = null;
-    let room: Room | null = null;
+    let room: Hub | null = null;
     let authenticating = false;
     let alive = true;
 
@@ -308,17 +315,17 @@ export function startWebServer({ config, store, discord }: Deps) {
         room = rooms.get(msg.instanceId) ?? null;
         if (!room) {
           if (rooms.size >= MAX_ROOMS) return fail('The server is busy. Try again soon.');
-          room = new Room(msg.instanceId, identity.guildId, identity.channelId, { onGameEnd });
+          room = new Hub(msg.instanceId, identity.guildId, identity.channelId, createGame);
           rooms.set(msg.instanceId, room);
         }
         if (userConnCount(identity.id) >= MAX_CONNS_PER_USER) return fail('Too many open sessions.');
-        if (!room.join({ id: identity.id, name: identity.name }, conn)) return fail('This game is full.');
+        if (!room.join({ id: identity.id, name: identity.name }, conn)) return fail('This activity is full.');
         connsByUser.set(identity.id, userConnCount(identity.id) + 1);
         return;
       }
 
-      if (msg.t === 'guess' && !guessBucket.take()) {
-        return send({ t: 'chat', kind: 'private', text: 'Slow down a little!' });
+      if (msg.t === 'g' && msg.m && typeof msg.m === 'object' && TEXT_MESSAGES.has(msg.m.t) && !guessBucket.take()) {
+        return send({ t: 'g', m: { t: 'chat', kind: 'private', text: 'Slow down a little!' } });
       }
       try {
         room?.handle(identity.id, msg);
