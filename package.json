@@ -1,7 +1,7 @@
 {
   "name": "discord-games-bot",
   "version": "0.1.0",
-  "description": "Privacy-focused party games for Discord: trivia, battle royale and a drawing Activity.",
+  "description": "Privacy-focused party games for Discord: trivia, battle royale, word guess, duels and a drawing Activity.",
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=.env src/index.ts",
     "build": "tsc -p tsconfig.json && vite build --config activity/vite.config.ts",

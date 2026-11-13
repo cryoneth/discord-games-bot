@@ -6,6 +6,11 @@ Privacy-focused party games that run entirely inside Discord, built to be safe f
 |---|---|---|
 | 🧠 **Trivia** | `/trivia start`: multiple-choice questions answered with buttons, speed bonus, scoreboard | Chat |
 | ⚔️ **Battle royale** | `/royale start`: players join with a button, the bot narrates rounds until one is left | Chat |
+| 🔤 **Word guess** | `/wordguess start`: the channel shares a set of guesses to find a secret five-letter word, entered through a pop-up and checked against a dictionary | Chat |
+| ❌ **Tic-tac-toe** | `/tictactoe @user`: challenge someone and play on a button grid | Chat |
+| 🔴 **Four in a row** | `/fourinarow @user`: drop discs into a 7×6 board until someone connects four | Chat |
+| ✂️ **Rock paper scissors** | `/rps @user` for best of 3 with hidden picks, or `/rps` for one round against the bot | Chat |
+| 🤔 **Would you rather** | `/wouldyourather`: an anonymous two-option vote with a results bar | Chat |
 | 🎨 **Sketch Party** | `/draw`: one player draws a secret word, everyone else guesses | Discord Activity (embedded in Discord) |
 
 Also: `/leaderboard`, `/privacy`, `/server-data wipe`.
@@ -67,7 +72,7 @@ src/
   index.ts            bot entrypoint (Discord client + web server)
   register.ts         slash command registration
   store.ts            SQLite score store (node:sqlite)
-  games/              trivia, battle royale, shared session lock, game content
+  games/              all chat games, duel/turn helpers, pure rules (logic.ts), session lock, content
   commands/           /draw, /leaderboard, /privacy, /server-data
   activity/server.ts  HTTP + WebSocket server for the drawing Activity
   activity/room.ts    drawing game logic (transport-agnostic, unit-tested)

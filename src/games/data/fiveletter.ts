@@ -1,0 +1,22 @@
+/** Answers for /wordguess: common, unambiguous, workplace-safe five-letter words. */
+export const ANSWERS = [
+  'apple', 'beach', 'brain', 'bread', 'brick', 'brush', 'cabin', 'candy', 'chair', 'chalk',
+  'charm', 'chess', 'chief', 'cloud', 'coach', 'coast', 'couch', 'crane', 'cream', 'crown',
+  'dance', 'diary', 'dream', 'drift', 'eagle', 'earth', 'fable', 'feast', 'field', 'flame',
+  'flock', 'flute', 'frost', 'fruit', 'ghost', 'giant', 'glass', 'globe', 'grape', 'grass',
+  'heart', 'honey', 'horse', 'house', 'jelly', 'jewel', 'juice', 'knife', 'koala', 'lemon',
+  'light', 'lunch', 'magic', 'mango', 'maple', 'march', 'medal', 'melon', 'money', 'month',
+  'motor', 'mouse', 'music', 'night', 'noble', 'ocean', 'olive', 'onion', 'orbit', 'otter',
+  'paint', 'panda', 'paper', 'party', 'peach', 'pearl', 'piano', 'pilot', 'pizza', 'plant',
+  'plate', 'plaza', 'point', 'pound', 'power', 'prism', 'pupil', 'queen', 'quest', 'quiet',
+  'radio', 'raven', 'river', 'robot', 'roast', 'royal', 'salad', 'scale', 'scarf', 'scene',
+  'shape', 'sheep', 'shelf', 'shell', 'shine', 'shirt', 'skate', 'slide', 'smile', 'snack',
+  'snake', 'solar', 'sound', 'space', 'spice', 'spoon', 'sport', 'stage', 'stamp', 'steam',
+  'stone', 'storm', 'story', 'sugar', 'sunny', 'swing', 'table', 'tiger', 'toast', 'tooth',
+  'torch', 'tower', 'track', 'train', 'treat', 'trend', 'truck', 'tulip', 'uncle', 'unity',
+  'urban', 'value', 'vapor', 'video', 'vivid', 'voice', 'waltz', 'watch', 'water', 'whale',
+  'wheat', 'wheel', 'witty', 'world', 'yacht', 'yeast', 'young', 'zebra', 'badge', 'basil',
+  'blaze', 'bloom', 'board', 'cider', 'clock', 'coral', 'daisy', 'denim', 'dwarf', 'fancy',
+  'flora', 'forge', 'gecko', 'glide', 'haste', 'igloo', 'ivory', 'joker', 'kayak', 'lodge',
+  'lunar', 'mocha', 'nacho', 'oasis', 'pixel', 'quilt', 'ridge', 'sushi', 'thumb', 'vault',
+] as const;

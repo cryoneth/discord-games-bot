@@ -2,9 +2,13 @@ import { Client, Events, GatewayIntentBits, MessageFlags, type ChatInputCommandI
 import { startWebServer } from './activity/server.js';
 import { handleDraw, handleLeaderboard, handlePrivacy, handleServerData } from './commands/meta.js';
 import { loadConfig } from './config.js';
+import { handleFourInARow, handleTicTacToe } from './games/boardgames.js';
 import { handleRoyale } from './games/royale.js';
+import { handleRps } from './games/rps.js';
 import { ChannelSessions } from './games/sessions.js';
 import { handleTrivia } from './games/trivia.js';
+import { handleWordguess } from './games/wordguess.js';
+import { handleWouldYouRather } from './games/wyr.js';
 import { ScoreStore } from './store.js';
 import { log } from './util/log.js';
 import { Cooldown } from './util/ratelimit.js';
@@ -27,6 +31,16 @@ async function route(interaction: ChatInputCommandInteraction): Promise<void> {
       return handleTrivia(interaction, { store, sessions });
     case 'royale':
       return handleRoyale(interaction, { store, sessions });
+    case 'wordguess':
+      return handleWordguess(interaction, { store, sessions });
+    case 'tictactoe':
+      return handleTicTacToe(interaction, { store });
+    case 'fourinarow':
+      return handleFourInARow(interaction, { store });
+    case 'rps':
+      return handleRps(interaction, { store });
+    case 'wouldyourather':
+      return handleWouldYouRather(interaction);
     case 'draw':
       return handleDraw(interaction);
     case 'leaderboard':

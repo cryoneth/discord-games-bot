@@ -17,6 +17,10 @@ const GAME_CHOICES: { name: string; value: GameId }[] = [
   { name: 'Trivia', value: 'trivia' },
   { name: 'Battle royale', value: 'royale' },
   { name: 'Drawing', value: 'drawing' },
+  { name: 'Word guess', value: 'wordguess' },
+  { name: 'Tic-tac-toe', value: 'tictactoe' },
+  { name: 'Four in a row', value: 'fourinarow' },
+  { name: 'Rock paper scissors', value: 'rps' },
 ];
 
 export const drawCommand = new SlashCommandBuilder()
@@ -72,7 +76,7 @@ export async function handleLeaderboard(interaction: ChatInputCommandInteraction
         .setDescription(
           rows.length
             ? rows.map((r, i) => `${medals[i] ?? `**${i + 1}.**`} <@${r.user_id}> — ${r.points} pts · ${r.wins} wins · ${r.games_played} games`).join('\n')
-            : 'No scores yet. Start a game with `/trivia start`, `/royale start` or `/draw`!',
+            : 'No scores yet. Try `/trivia start`, `/wordguess start`, `/tictactoe` or `/draw`!',
         ),
     ],
   });

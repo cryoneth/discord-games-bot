@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-export type GameId = 'trivia' | 'royale' | 'drawing';
+export type GameId = 'trivia' | 'royale' | 'drawing' | 'tictactoe' | 'fourinarow' | 'rps' | 'wordguess';
 
 export interface GameResult {
   userId: string;
