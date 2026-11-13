@@ -15,7 +15,15 @@ export type GameId =
   | 'oddoneout'
   | 'forbidden'
   | 'quiz'
-  | 'market';
+  | 'market'
+  | 'dotsandboxes'
+  | 'matchsticks'
+  | 'fiveinarow'
+  | 'mancala'
+  | 'higherlower'
+  | 'hangman'
+  | 'numberduel'
+  | 'reaction';
 
 export interface QuizRow {
   id: string;

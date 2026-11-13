@@ -1,4 +1,6 @@
-import { fourInARowCommand, tictactoeCommand } from '../games/boardgames.js';
+import { dotsCommand, fourInARowCommand, gomokuCommand, higherLowerCommand, mancalaCommand, nimCommand, tictactoeCommand } from '../games/boardgames.js';
+import { reactionCommand } from '../games/reaction.js';
+import { hangmanCommand, numberDuelCommand } from '../games/secretduels.js';
 import { royaleCommand } from '../games/royale.js';
 import { rpsCommand } from '../games/rps.js';
 import { triviaCommand } from '../games/trivia.js';
@@ -13,6 +15,14 @@ export const commands = [
   tictactoeCommand,
   fourInARowCommand,
   rpsCommand,
+  dotsCommand,
+  nimCommand,
+  gomokuCommand,
+  mancalaCommand,
+  higherLowerCommand,
+  hangmanCommand,
+  numberDuelCommand,
+  reactionCommand,
   wyrCommand,
   playCommand,
   drawCommand,

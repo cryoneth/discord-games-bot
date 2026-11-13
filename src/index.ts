@@ -2,7 +2,9 @@ import { Client, Events, GatewayIntentBits, MessageFlags, type ChatInputCommandI
 import { startWebServer } from './activity/server.js';
 import { handleLaunch, handleLeaderboard, handlePrivacy, handleServerData } from './commands/meta.js';
 import { loadConfig } from './config.js';
-import { handleFourInARow, handleTicTacToe } from './games/boardgames.js';
+import { handleDots, handleFourInARow, handleGomoku, handleHigherLower, handleMancala, handleNim, handleTicTacToe } from './games/boardgames.js';
+import { handleReaction } from './games/reaction.js';
+import { handleHangman, handleNumberDuel } from './games/secretduels.js';
 import { handleRoyale } from './games/royale.js';
 import { handleRps } from './games/rps.js';
 import { ChannelSessions } from './games/sessions.js';
@@ -39,6 +41,22 @@ async function route(interaction: ChatInputCommandInteraction): Promise<void> {
       return handleFourInARow(interaction, { store });
     case 'rps':
       return handleRps(interaction, { store });
+    case 'dotsandboxes':
+      return handleDots(interaction, { store });
+    case 'matchsticks':
+      return handleNim(interaction, { store });
+    case 'fiveinarow':
+      return handleGomoku(interaction, { store });
+    case 'mancala':
+      return handleMancala(interaction, { store });
+    case 'higherlower':
+      return handleHigherLower(interaction, { store });
+    case 'hangman':
+      return handleHangman(interaction, { store });
+    case 'numberduel':
+      return handleNumberDuel(interaction, { store });
+    case 'reaction':
+      return handleReaction(interaction, { store });
     case 'wouldyourather':
       return handleWouldYouRather(interaction);
     case 'play':

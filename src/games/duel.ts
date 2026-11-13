@@ -198,17 +198,28 @@ async function offerRematch(message: Message, played: Played, [a, b]: [string, s
 
 // ── Turn-based board games ───────────────────────────────────────────────────
 
+/**
+ * What a move did. `true`: a normal move, the turn passes. `'again'`: a move after which the same
+ * player goes again (e.g. closing a box). `'select'`: a UI step such as picking a row first; the
+ * board re-renders but nothing was played. `false`: not legal.
+ */
+export type MoveResult = boolean | 'again' | 'select';
+
 export interface TurnGame {
   /** Emoji used for each seat in text. */
   marks: [string, string];
-  /** Applies a move from a button `action` for `seat`. Returns false if it's not legal. */
-  move(action: string, seat: Seat): boolean;
-  /** Checked after each legal move. */
+  /** Applies a button `action` for `seat`. */
+  move(action: string, seat: Seat): MoveResult;
+  /** Checked after each move that was played. */
   result(lastMover: Seat): Ending;
   /** The board image. */
   scene(): Scene;
-  /** Move buttons. `id` prefixes every custom ID. */
-  buttons(id: string, disabled: boolean): ActionRowBuilder<ButtonBuilder>[];
+  /** Move buttons. `id` prefixes every custom ID; `turn` is the seat to move. */
+  buttons(id: string, disabled: boolean, turn: Seat): ActionRowBuilder<ButtonBuilder>[];
+  /** Optional extra line under the players, e.g. the score. */
+  status?(): string;
+  /** Optional text for the footer while the game runs (rules reminder). */
+  hint?: string;
 }
 
 export function statusLine(players: [string, string], turn: Seat, ending: Ending, marks: [string, string]): string {
@@ -232,16 +243,23 @@ export function turnBased(def: { id: GameId; title: string; color: number; creat
       let turn: Seat = 0;
       let ending: Ending = null;
       let moves = 0;
+      let renders = 0;
 
-      const view = (rows: ActionRowBuilder<ButtonBuilder>[], celebrate = false): Card => ({
+      const view = (rows: ActionRowBuilder<ButtonBuilder>[], celebrate = false): Card => {
+        const extra = game.status?.();
+        return {
         color: ending && ending.kind !== 'draw' ? 0xfee75c : def.color,
         title: def.title,
-        body: `${game.marks[0]} <@${players[0]}>  vs  ${game.marks[1]} <@${players[1]}>\n${statusLine(players, turn, ending, game.marks)}`,
-        image: sceneImage(game.scene(), `board-${moves}`, `${def.title} board`, celebrate),
-        footer: ending ? undefined : `Move ${moves + 1} · moves time out after ${TURN_SECONDS / 60} min of inactivity`,
+        body:
+          `${game.marks[0]} <@${players[0]}>  vs  ${game.marks[1]} <@${players[1]}>\n` +
+          (extra ? `${extra}\n` : '') +
+          statusLine(players, turn, ending, game.marks),
+        image: sceneImage(game.scene(), `board-${renders++}`, `${def.title} board`, celebrate),
+        footer: ending ? undefined : `${game.hint ? `${game.hint} · ` : ''}Move ${moves + 1} · moves time out after ${TURN_SECONDS / 60} min of inactivity`,
         rows,
-      });
-      const live = () => view([...game.buttons(id, false), ROW().addComponents(forfeitButton(id))]);
+        };
+      };
+      const live = () => view([...game.buttons(id, false, turn), ROW().addComponents(forfeitButton(id))]);
 
       await message.edit(card(live()));
 
@@ -264,17 +282,20 @@ export function turnBased(def: { id: GameId; title: string; color: number; creat
             await btn.reply({ content: `It's <@${players[turn]}>'s turn.`, flags: MessageFlags.Ephemeral }).catch(() => {});
             return;
           }
-          if (!game.move(action, turn)) {
+          const played = game.move(action, turn);
+          if (!played) {
             await btn.reply({ content: "You can't move there.", flags: MessageFlags.Ephemeral }).catch(() => {});
             return;
           }
-          moves++;
-          ending = game.result(turn);
-          if (ending) {
-            await btn.deferUpdate().catch(() => {});
-            return collector.stop('done');
+          if (played !== 'select') {
+            moves++;
+            ending = game.result(turn);
+            if (ending) {
+              await btn.deferUpdate().catch(() => {});
+              return collector.stop('done');
+            }
+            if (played !== 'again') turn = (1 - turn) as Seat;
           }
-          turn = (1 - turn) as Seat;
           await btn.update(card(live())).catch(() => {});
         });
         collector.once('end', () => {
@@ -285,7 +306,7 @@ export function turnBased(def: { id: GameId; title: string; color: number; creat
 
       // Render the (possibly animated) final board once and reuse it for rematch-button updates.
       const finalCard = view([], ending!.kind === 'win');
-      return { players, ending, final: (extra) => ({ ...finalCard, rows: [...game.buttons(id, true), ...extra] }) };
+      return { players, ending, final: (extra) => ({ ...finalCard, rows: [...game.buttons(id, true, turn), ...extra] }) };
     },
   };
 }

@@ -6,6 +6,9 @@ import { scoreGuess } from '../src/games/logic.js';
 import { celebrationGif } from '../src/render/animate.js';
 import { bannerScene, fourInARowScene, rpsScene, ticTacToeScene, wordGridScene, type Scene } from '../src/render/boards.js';
 import { png } from '../src/render/canvas.js';
+import { dotsAndBoxes, fiveInARow, higherLower, mancala, matchsticks } from '../src/games/boardgames.js';
+import { hangmanRules, numberRules } from '../src/games/secretduels.js';
+import { mancalaScene, nimScene } from '../src/render/duels.js';
 
 const out = process.argv[2] ?? '.';
 const save = (name: string, s: Scene, gif = false) => {
@@ -36,3 +39,52 @@ save('rps.png', rpsScene('rock', 'scissors', 1));
 save('rps-tie.png', rpsScene('paper', 'paper', 0));
 save('rps-win.gif', rpsScene('scissors', 'paper', 1), true);
 save('banner.gif', bannerScene('LAST ONE STANDING', 'after 7 rounds of chaos', '#ffd23f'), true);
+
+// ── Small duels ──
+
+const dots = dotsAndBoxes();
+for (const [a, s] of [['b0', 'top'], ['b0', 'left'], ['b0', 'bottom'], ['b0', 'right'], ['b4', 'top'], ['b4', 'left']] as const) {
+  dots.move(a, 0);
+  dots.move(`s:${s}`, 0);
+}
+dots.move('b8', 1);
+save('dots.png', dots.scene());
+
+const nim = matchsticks(21);
+nim.move('3', 0);
+nim.move('2', 1);
+save('nim.png', nim.scene());
+save('nim-win.gif', nimScene(21, 0, 1, 1, true), true);
+
+const go = fiveInARow();
+for (const [r, c, s] of [[4, 4, 0], [4, 5, 1], [3, 3, 0], [5, 5, 1], [2, 2, 0], [3, 5, 1]] as const) {
+  go.move(`r:${r}`, s);
+  go.move(`c:${c}`, s);
+}
+go.move('r:6', 0);
+save('gomoku.png', go.scene());
+
+const m = mancala();
+m.move('2', 0);
+m.move('5', 0);
+m.move('3', 1);
+save('mancala.png', m.scene());
+save('mancala-win.gif', mancalaScene([0, 0, 0, 0, 0, 0, 27, 0, 0, 0, 0, 0, 0, 21], [6], 0, true), true);
+
+const hl = higherLower();
+hl.move('higher', 0);
+hl.move('lower', 1);
+save('higherlower.png', hl.scene());
+
+const hm = hangmanRules();
+hm.setSecret(0, 'ice cream');
+hm.setSecret(1, 'lighthouse');
+for (const [s, g] of [[0, 'e'], [1, 'c'], [0, 'z'], [1, 'q'], [0, 'h'], [1, 'x']] as const) hm.guess(s, g);
+save('hangman.png', hm.scene(0, -1, false, false));
+save('hangman-end.gif', hm.scene(-1, 1, true, true), true);
+
+const nd = numberRules();
+nd.setSecret(0, '30');
+nd.setSecret(1, '77');
+for (const [s, g] of [[0, '50'], [1, '50'], [0, '75'], [1, '25'], [0, '80']] as const) nd.guess(s, g);
+save('number.png', nd.scene(1, -1, false, false));

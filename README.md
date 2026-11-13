@@ -10,6 +10,14 @@ Privacy-focused party games that run entirely inside Discord, built to be safe f
 | ❌ **Tic-tac-toe** | `/tictactoe @user`: challenge someone and play on a button grid | Chat |
 | 🔴 **Four in a row** | `/fourinarow @user`: drop discs into a 7×6 board until someone connects four | Chat |
 | ✂️ **Rock paper scissors** | `/rps @user` for best of 3 with hidden picks, or `/rps` for one round against the bot | Chat |
+| 🔳 **Dots and boxes** | `/dotsandboxes @user`: draw lines on a 3×3 grid of boxes (pick a box, then a side). Close a box to score it and go again | Chat |
+| 🪵 **Matchsticks** | `/matchsticks @user`: take 1, 2 or 3 sticks from a pile of 15–23. Whoever takes the last stick loses | Chat |
+| ⚫ **Five in a row** | `/fiveinarow @user`: place stones on a 9×9 board (pick a row letter, then a column) until someone gets five in a row | Chat |
+| 🫘 **Mancala** | `/mancala @user`: sow seeds around the board (Kalah rules). Last seed in your store gives a free turn, landing in an empty pit captures the pit opposite | Chat |
+| 🃏 **Higher or lower** | `/higherlower @user`: take turns calling whether the next card is higher or lower. A same-rank card is safe, one wrong call loses | Chat |
+| 🪢 **Hangman duel** | `/hangman @user`: each player hides a word for the other through a pop-up (or gets a random one), then you take turns guessing letters or the whole answer. Six misses and you hang | Chat |
+| 🔢 **Number duel** | `/numberduel @user`: each player hides a number from 1 to 100, then you take turns guessing the other's with higher/lower hints. Equal turns, so the second player can still draw level | Chat |
+| ⚡ **Reaction duel** | `/reaction @user`: wait for the button to turn green, then click first. Clicking early loses the round. First to 2 | Chat |
 | 🤔 **Would you rather** | `/wouldyourather`: an anonymous two-option vote with a results bar | Chat |
 | 🎨 **Sketch Party** | One player draws a secret word, everyone else guesses. The host sets the game length: a time limit (5–20 min), first to a score (300–1200), or 1–3 rounds, plus 45/60/80 s per drawing | Activity |
 | 🕵️ **Odd One Out** | Everyone gets the same secret word except one player, who gets a similar one and doesn't know it. Players give clues in turn, discuss, then vote. A caught odd one can still steal points by guessing the real word. General and crypto/DeFi word decks | Activity |
