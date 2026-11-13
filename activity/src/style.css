@@ -56,12 +56,23 @@ canvas.can-draw { cursor: crosshair; }
 
 .overlay {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 14px; background: rgb(20 21 25 / 0.82); border-radius: var(--radius); text-align: center; padding: 20px;
+  gap: 14px; background: rgb(20 21 25 / 0.82); border-radius: var(--radius); text-align: center; padding: 20px; overflow-y: auto;
 }
 .overlay.hidden { display: none; }
 .overlay h1 { margin: 0; font-size: 28px; }
 .overlay p { margin: 0; color: var(--muted); max-width: 420px; }
 .overlay .choices { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+
+.settings { display: flex; flex-direction: column; gap: 8px; background: rgb(255 255 255 / 0.04); border-radius: var(--radius); padding: 12px 14px; max-width: 520px; width: 100%; }
+.settings .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.settings .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 1px; min-width: 92px; text-align: right; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.chip { padding: 6px 12px; border-radius: 999px; font-size: 14px; }
+.chip.active { background: var(--accent); }
+.chip:disabled { opacity: 0.35; }
+.chip.active:disabled { opacity: 1; }
+.settings .estimate { color: var(--text); font-weight: 600; margin-top: 2px; }
+.settings .hint-small { color: var(--muted); font-size: 12px; }
 
 button {
   font: inherit; color: var(--text); background: var(--panel-2); border: 0; border-radius: 10px;
@@ -98,6 +109,7 @@ button.danger { background: color-mix(in srgb, var(--bad) 60%, var(--panel-2)); 
 #guess:disabled { opacity: 0.5; }
 
 @media (max-width: 800px) {
+  .settings .label { min-width: 0; text-align: center; width: 100%; }
   .layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr 180px; }
   .players { max-height: 90px; }
   #players { flex-direction: row; flex-wrap: wrap; }

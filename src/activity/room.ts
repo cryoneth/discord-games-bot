@@ -3,10 +3,14 @@ import {
   CANVAS_H,
   CANVAS_W,
   COLORS,
+  DEFAULT_SETTINGS,
   LIMITS,
+  POINTS_MODE_MAX_MINUTES,
   TIMING,
+  validSettings,
   WIDTHS,
   type ChatKind,
+  type GameSettings,
   type ClientMessage,
   type Phase,
   type ServerMessage,
@@ -39,16 +43,15 @@ export interface RoomHooks {
 
 export interface RoomTiming {
   chooseMs: number;
-  drawMs: number;
   revealMs: number;
-  rounds: number;
+  /** Length of one "second" for settings-based durations (draw time, time limit). Tests shrink it. */
+  secondMs: number;
 }
 
 const DEFAULT_TIMING: RoomTiming = {
   chooseMs: TIMING.chooseSeconds * 1000,
-  drawMs: TIMING.drawSeconds * 1000,
   revealMs: TIMING.revealSeconds * 1000,
-  rounds: TIMING.rounds,
+  secondMs: 1000,
 };
 
 /** Lowercase, strip accents and punctuation, collapse whitespace. */
@@ -118,6 +121,11 @@ export class Room {
   private strokes: StrokeChunk[] = [];
   private timers: NodeJS.Timeout[] = [];
   private recentWords: string[] = [];
+  private settings: GameSettings = { ...DEFAULT_SETTINGS };
+  private turn = 0;
+  private gameStarted = 0;
+  private gameEndsAt: number | null = null;
+  private gameTimer: NodeJS.Timeout | null = null;
   lastActivity = Date.now();
 
   constructor(
@@ -194,6 +202,8 @@ export class Room {
     switch (msg.t) {
       case 'start':
         return this.start(userId);
+      case 'settings':
+        return this.updateSettings(userId, msg.settings);
       case 'pick':
         if (this.phase === 'choosing' && userId === this.drawerId && Number.isInteger(msg.index)) {
           const word = this.choices[msg.index];
@@ -227,6 +237,7 @@ export class Room {
 
   dispose(): void {
     this.clearTimers();
+    this.clearGameTimer();
     this.players.clear();
     this.strokes = [];
   }
@@ -255,9 +266,61 @@ export class Room {
       }
     }
     this.round = 1;
+    this.turn = 0;
     this.queue = this.connectedOrder();
-    this.system(`Game on! ${this.timing.rounds} rounds — everyone draws once per round.`);
+    this.gameStarted = Date.now();
+    this.clearGameTimer();
+    const { mode, value } = this.settings;
+    if (mode === 'time') {
+      const ms = value * 60 * this.timing.secondMs;
+      this.gameEndsAt = this.gameStarted + ms;
+      this.gameTimer = setTimeout(() => {
+        if (this.phase === 'choosing' || this.phase === 'drawing') this.system("⏰ Time's up! This is the last turn.");
+        this.broadcastState();
+      }, ms);
+    } else {
+      this.gameEndsAt = null;
+    }
+    const goal =
+      mode === 'rounds'
+        ? `${value} round${value === 1 ? '' : 's'}, everyone draws once per round.`
+        : mode === 'time'
+          ? `${value} minutes on the clock.`
+          : `first to ${value} points wins.`;
+    this.system(`Game on! ${goal}`);
     this.nextTurn();
+  }
+
+  private updateSettings(userId: string, settings: unknown): void {
+    if (this.phase !== 'lobby' && this.phase !== 'finished') return;
+    if (!this.isHost(userId)) return this.direct(userId, 'Only the host can change the game settings.');
+    if (!validSettings(settings)) return;
+    this.settings = { mode: settings.mode, value: settings.value, drawSeconds: settings.drawSeconds };
+    this.broadcastState();
+  }
+
+  /** Whether the game should end instead of starting another turn. */
+  private goalReached(): boolean {
+    const { mode, value } = this.settings;
+    if (mode === 'time') return this.gameEndsAt !== null && Date.now() >= this.gameEndsAt;
+    if (mode === 'points') {
+      if ([...this.players.values()].some((p) => p.score >= value)) return true;
+      return Date.now() - this.gameStarted >= POINTS_MODE_MAX_MINUTES * 60 * this.timing.secondMs;
+    }
+    return false; // rounds mode ends when the queue runs out in the last round
+  }
+
+  private get drawMs(): number {
+    return this.settings.drawSeconds * this.timing.secondMs;
+  }
+
+  private get totalRounds(): number {
+    return this.settings.mode === 'rounds' ? this.settings.value : 0;
+  }
+
+  private clearGameTimer(): void {
+    if (this.gameTimer) clearTimeout(this.gameTimer);
+    this.gameTimer = null;
   }
 
   private connectedOrder(): string[] {
@@ -271,11 +334,13 @@ export class Room {
     this.word = '';
     this.revealed.clear();
 
+    if (this.turn > 0 && this.goalReached()) return this.finish();
+
     let next: string | undefined;
     while (!next) {
       if (this.queue.length === 0) {
         this.round++;
-        if (this.round > this.timing.rounds) return this.finish();
+        if (this.settings.mode === 'rounds' && this.round > this.settings.value) return this.finish();
         this.queue = this.connectedOrder();
         if (this.queue.length < 2) return this.toLobby();
       }
@@ -283,6 +348,7 @@ export class Room {
       if ((this.players.get(candidate)?.conns.size ?? 0) > 0) next = candidate;
     }
 
+    this.turn++;
     this.drawerId = next;
     this.phase = 'choosing';
     const available = WORDS.filter((w) => !this.recentWords.includes(w));
@@ -302,19 +368,19 @@ export class Room {
     this.recentWords = [...this.recentWords, word].slice(-60);
     this.phase = 'drawing';
     this.turnStarted = Date.now();
-    this.endsAt = this.turnStarted + this.timing.drawMs;
+    this.endsAt = this.turnStarted + this.drawMs;
     this.broadcastState();
     // Reveal letters at 50% and 75% of the time (never the whole word).
     const letters = [...word].map((ch, i) => (ch === ' ' ? -1 : i)).filter((i) => i >= 0);
     const reveals = Math.min(2, Math.max(0, letters.length - 2));
     const order = shuffle(letters);
     for (let r = 0; r < reveals; r++) {
-      this.later(this.timing.drawMs * (0.5 + 0.25 * r), () => {
+      this.later(this.drawMs * (0.5 + 0.25 * r), () => {
         this.revealed.add(order[r]!);
         this.broadcastState();
       });
     }
-    this.later(this.timing.drawMs, () => this.endTurn());
+    this.later(this.drawMs, () => this.endTurn());
   }
 
   private guess(player: Player, text: string): void {
@@ -338,7 +404,7 @@ export class Room {
     const target = normalizeGuess(this.word);
     if (g === target) {
       player.guessed = true;
-      const remaining = Math.max(0, (this.endsAt ?? 0) - Date.now()) / this.timing.drawMs;
+      const remaining = Math.max(0, (this.endsAt ?? 0) - Date.now()) / this.drawMs;
       player.score += 50 + Math.round(100 * remaining);
       const drawer = this.drawerId ? this.players.get(this.drawerId) : undefined;
       if (drawer) drawer.score += 25;
@@ -372,6 +438,8 @@ export class Room {
 
   private finish(): void {
     this.clearTimers();
+    this.clearGameTimer();
+    this.gameEndsAt = null;
     this.phase = 'finished';
     this.drawerId = null;
     this.endsAt = null;
@@ -392,6 +460,8 @@ export class Room {
 
   private toLobby(): void {
     this.clearTimers();
+    this.clearGameTimer();
+    this.gameEndsAt = null;
     this.phase = 'lobby';
     this.drawerId = null;
     this.endsAt = null;
@@ -419,8 +489,11 @@ export class Room {
         .filter(Boolean)
         .map((p) => ({ id: p.id, name: p.name, score: p.score, guessed: p.guessed, connected: p.conns.size > 0, host: p.id === hostId })),
       drawerId: this.drawerId,
-      round: Math.min(this.round, this.timing.rounds),
-      totalRounds: this.timing.rounds,
+      round: this.settings.mode === 'rounds' ? Math.min(this.round, this.totalRounds) : this.turn,
+      totalRounds: this.totalRounds,
+      turn: this.turn,
+      settings: this.settings,
+      gameEndsAt: this.gameEndsAt,
       hint,
       ...(showWord && this.word ? { word: this.word } : {}),
       endsAt: this.endsAt,

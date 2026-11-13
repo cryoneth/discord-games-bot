@@ -3,9 +3,14 @@ import {
   CANVAS_H,
   CANVAS_W,
   COLORS,
+  describeGoal,
+  estimateMinutes,
   LIMITS,
+  SETTING_OPTIONS,
   WIDTHS,
   type ClientMessage,
+  type GameSettings,
+  type GoalMode,
   type ServerMessage,
   type StateMessage,
   type StrokeChunk,
@@ -190,7 +195,7 @@ function render() {
   const drawer = s.players.find((p) => p.id === s.drawerId);
   const meP = s.players.find((p) => p.id === me);
 
-  roundEl.textContent = s.phase === 'lobby' ? 'Lobby' : s.phase === 'finished' ? 'Game over' : `Round ${s.round}/${s.totalRounds}`;
+  renderProgress();
   hintEl.textContent = s.hint;
 
   playersEl.replaceChildren(
@@ -225,6 +230,7 @@ function render() {
             ? ranking.slice(0, 3).map((p, i) => `${['🥇', '🥈', '🥉'][i]} ${p.name} ${p.score}`).join('   ')
             : 'Take turns drawing a secret word while everyone else races to guess it.',
       }),
+      settingsPanel(s.settings, isHost, connected),
       el('p', {
         textContent: connected < 2 ? 'Waiting for at least one more player to join the activity…' : isHost ? `${connected} players ready.` : `Waiting for the host to start (${connected} players).`,
       }),
@@ -254,7 +260,78 @@ function render() {
   }
 }
 
+// ── Game length settings ───────────────────────────────────────────────────
+
+const MODE_LABELS: Record<GoalMode, string> = { time: '⏳ Time limit', points: '🎯 Points', rounds: '🔁 Rounds' };
+const valueLabel = (mode: GoalMode, v: number) => (mode === 'time' ? `${v} min` : mode === 'points' ? `${v} pts` : `${v}`);
+
+function formatEstimate(minutes: number): string {
+  if (minutes < 1.5) return '≈ 1 min';
+  return `≈ ${Math.round(minutes)} min`;
+}
+
+function chips<T extends number | string>(options: readonly T[], current: T, label: (v: T) => string, enabled: boolean, pick: (v: T) => void) {
+  return el(
+    'div',
+    { className: 'chips' },
+    ...options.map((v) => {
+      const b = el('button', { type: 'button', className: `chip${v === current ? ' active' : ''}`, textContent: label(v) });
+      b.disabled = !enabled && v !== current;
+      if (enabled) b.onclick = () => pick(v);
+      return b;
+    }),
+  );
+}
+
+function settingsPanel(settings: GameSettings, isHost: boolean, players: number) {
+  const update = (next: Partial<GameSettings>) => {
+    const merged = { ...settings, ...next };
+    // Switching mode picks a sensible value for that mode.
+    if (next.mode && next.mode !== settings.mode) merged.value = next.mode === 'time' ? 10 : next.mode === 'points' ? 500 : 1;
+    send({ t: 'settings', settings: merged });
+  };
+  const estimate = estimateMinutes(settings, players);
+  const panel = el(
+    'div',
+    { className: 'settings' },
+    el('div', { className: 'row' }, el('span', { className: 'label', textContent: 'Game ends by' }), chips(['time', 'points', 'rounds'] as GoalMode[], settings.mode, (m) => MODE_LABELS[m], isHost, (mode) => update({ mode }))),
+    el(
+      'div',
+      { className: 'row' },
+      el('span', { className: 'label', textContent: settings.mode === 'time' ? 'Length' : settings.mode === 'points' ? 'Target' : 'Rounds' }),
+      chips(SETTING_OPTIONS[settings.mode] as readonly number[], settings.value, (v) => valueLabel(settings.mode, v), isHost, (value) => update({ value })),
+    ),
+    el(
+      'div',
+      { className: 'row' },
+      el('span', { className: 'label', textContent: 'Draw time' }),
+      chips(SETTING_OPTIONS.drawSeconds as readonly number[], settings.drawSeconds, (v) => `${v}s`, isHost, (drawSeconds) => update({ drawSeconds })),
+    ),
+    el('div', {
+      className: 'estimate',
+      textContent:
+        `${describeGoal(settings)} · ${formatEstimate(estimate)} with ${Math.max(2, players)} players` + (settings.mode === 'time' ? ' (the last turn finishes after time is up)' : ''),
+    }),
+  );
+  if (!isHost) panel.append(el('div', { className: 'hint-small', textContent: 'Only the host can change these.' }));
+  return panel;
+}
+
+function renderProgress() {
+  const s = state;
+  if (!s) return;
+  if (s.phase === 'lobby') roundEl.textContent = 'Lobby';
+  else if (s.phase === 'finished') roundEl.textContent = 'Game over';
+  else if (s.settings.mode === 'rounds') roundEl.textContent = `Round ${s.round}/${s.totalRounds}`;
+  else if (s.settings.mode === 'points') roundEl.textContent = `🎯 First to ${s.settings.value} · turn ${s.turn}`;
+  else if (s.gameEndsAt) {
+    const left = Math.max(0, Math.ceil((s.gameEndsAt - (Date.now() + clockOffset)) / 1000));
+    roundEl.textContent = left > 0 ? `⏳ ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')} left` : '⏳ Last turn!';
+  }
+}
+
 function tick() {
+  if (state?.settings.mode === 'time') renderProgress();
   if (state?.endsAt) {
     const left = Math.max(0, Math.ceil((state.endsAt - (Date.now() + clockOffset)) / 1000));
     timerEl.textContent = `⏱ ${left}s`;

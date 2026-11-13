@@ -11,7 +11,7 @@ Privacy-focused party games that run entirely inside Discord, built to be safe f
 | 🔴 **Four in a row** | `/fourinarow @user`: drop discs into a 7×6 board until someone connects four | Chat |
 | ✂️ **Rock paper scissors** | `/rps @user` for best of 3 with hidden picks, or `/rps` for one round against the bot | Chat |
 | 🤔 **Would you rather** | `/wouldyourather`: an anonymous two-option vote with a results bar | Chat |
-| 🎨 **Sketch Party** | `/draw`: one player draws a secret word, everyone else guesses | Discord Activity (embedded in Discord) |
+| 🎨 **Sketch Party** | `/draw`: one player draws a secret word, everyone else guesses. The host sets the game length in the lobby: a time limit (5–20 min), first to a score (300–1200, with an estimated length), or 1–3 rounds, plus 45/60/80 s per drawing | Discord Activity (embedded in Discord) |
 
 Also: `/leaderboard`, `/privacy`, `/server-data wipe`.
 

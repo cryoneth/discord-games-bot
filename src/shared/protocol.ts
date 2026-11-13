@@ -23,10 +23,71 @@ export const LIMITS = {
 
 export const TIMING = {
   chooseSeconds: 12,
-  drawSeconds: 80,
   revealSeconds: 6,
-  rounds: 3,
 } as const;
+
+// ── Game length settings (chosen by the host in the lobby) ─────────────────
+
+/** How a game ends: after N rounds, after a time limit, or when someone reaches a score. */
+export type GoalMode = 'rounds' | 'time' | 'points';
+
+export interface GameSettings {
+  mode: GoalMode;
+  /** Rounds, minutes or points, depending on `mode`. */
+  value: number;
+  drawSeconds: number;
+}
+
+export const SETTING_OPTIONS = {
+  rounds: [1, 2, 3],
+  time: [5, 10, 15, 20],
+  points: [300, 500, 800, 1200],
+  drawSeconds: [45, 60, 80],
+} as const;
+
+export const DEFAULT_SETTINGS: GameSettings = { mode: 'time', value: 10, drawSeconds: 60 };
+
+/** Points mode never runs longer than this, even if nobody reaches the target. */
+export const POINTS_MODE_MAX_MINUTES = 30;
+
+export function validSettings(x: unknown): x is GameSettings {
+  if (!x || typeof x !== 'object') return false;
+  const { mode, value, drawSeconds } = x as Record<string, unknown>;
+  if (mode !== 'rounds' && mode !== 'time' && mode !== 'points') return false;
+  return (SETTING_OPTIONS[mode] as readonly number[]).includes(value as number) && (SETTING_OPTIONS.drawSeconds as readonly number[]).includes(drawSeconds as number);
+}
+
+/** Rough seconds per turn: picking a word, drawing (usually ends early once everyone guesses), reveal. */
+export function turnSeconds(drawSeconds: number): number {
+  return 6 + drawSeconds * 0.7 + TIMING.revealSeconds;
+}
+
+/**
+ * Approximate game length in minutes, for the lobby. Points mode assumes a
+ * typical player guesses ~80% of words for ~105 points each and earns ~20 per
+ * guesser when drawing, with the leader ~30% ahead of average.
+ */
+export function estimateMinutes(settings: GameSettings, players: number): number {
+  const n = Math.max(2, players);
+  const turn = turnSeconds(settings.drawSeconds);
+  switch (settings.mode) {
+    case 'rounds':
+      return (settings.value * n * turn) / 60;
+    case 'time':
+      return settings.value + turn / 2 / 60; // the last turn finishes after time is up
+    case 'points': {
+      const leaderPerRotation = 1.3 * 104 * (n - 1);
+      const turns = Math.ceil((settings.value / leaderPerRotation) * n);
+      return Math.min(POINTS_MODE_MAX_MINUTES, (turns * turn) / 60);
+    }
+  }
+}
+
+export function describeGoal(s: GameSettings): string {
+  if (s.mode === 'rounds') return `${s.value} round${s.value === 1 ? '' : 's'}`;
+  if (s.mode === 'time') return `${s.value} minutes`;
+  return `First to ${s.value} points`;
+}
 
 /**
  * A chunk of a stroke. `id` groups chunks into one stroke (for undo).
@@ -44,6 +105,7 @@ export type Phase = 'lobby' | 'choosing' | 'drawing' | 'reveal' | 'finished';
 export type ClientMessage =
   | { t: 'hello'; accessToken: string; instanceId: string }
   | { t: 'start' }
+  | { t: 'settings'; settings: GameSettings }
   | { t: 'pick'; index: number }
   | { t: 'stroke'; s: StrokeChunk }
   | { t: 'undo' }
@@ -65,8 +127,14 @@ export interface StateMessage {
   phase: Phase;
   players: PlayerView[];
   drawerId: string | null;
+  /** Round number (rounds mode) or turn number (time and points modes). */
   round: number;
   totalRounds: number;
+  /** Turns played so far in this game, including the current one. */
+  turn: number;
+  settings: GameSettings;
+  /** Time mode only: when no new turns start any more. */
+  gameEndsAt: number | null;
   /** Underscores with revealed letters, e.g. "c _ _ f e e". Full word for the drawer and during reveal. */
   hint: string;
   /** The plain word: only sent to the drawer while drawing, and to everyone during reveal. */
