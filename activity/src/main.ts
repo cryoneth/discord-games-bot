@@ -11,6 +11,7 @@ import {
   type ClientMessage,
   type GameSettings,
   type GoalMode,
+  type PlayerView,
   type ServerMessage,
   type StateMessage,
   type StrokeChunk,
@@ -38,7 +39,10 @@ const roundEl = $('round');
 const timerEl = $('timer');
 
 function showOverlay(...children: (Node | string)[]) {
-  overlay.replaceChildren(...children);
+  const first = children[0];
+  const wrapped = first instanceof HTMLElement && first.classList.contains('card') ? children : [el('div', { className: 'card' }, ...children)];
+  overlay.replaceChildren(...wrapped);
+  overlay.classList.remove('peek');
   overlay.classList.remove('hidden');
 }
 function hideOverlay() {
@@ -58,6 +62,8 @@ let ws: WebSocket | null = null;
 let accessToken = '';
 let instanceId = '';
 let fatal = false;
+let turnStartScores = new Map<string, number>();
+let settingsOpen = false;
 
 const send = (msg: ClientMessage) => {
   if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
@@ -198,13 +204,27 @@ function render() {
   renderProgress();
   hintEl.textContent = s.hint;
 
+  const inGame = s.phase !== 'lobby';
   playersEl.replaceChildren(
     ...[...s.players]
       .sort((a, b) => b.score - a.score)
-      .map((p) => {
-        const cls = [p.guessed && 'guessed', p.id === s.drawerId && 'drawing', !p.connected && 'offline', p.id === me && 'me'].filter(Boolean).join(' ');
-        const label = `${p.id === s.drawerId ? '✏️ ' : ''}${p.host ? '👑 ' : ''}${p.name}`;
-        return el('li', { className: cls }, el('span', { className: 'name', textContent: label }), el('span', { className: 'score', textContent: String(p.score) }));
+      .map((p, i) => {
+        const isDrawer = p.id === s.drawerId && s.phase !== 'finished';
+        const cls = [p.guessed && (s.phase === 'drawing' || s.phase === 'reveal') && 'guessed', isDrawer && 'drawing', !p.connected && 'offline', p.id === me && 'me'].filter(Boolean).join(' ');
+        const status = !p.connected ? 'away' : isDrawer ? '✏️ drawing' : p.guessed && s.phase === 'drawing' ? '✓ guessed' : p.id === me ? 'you' : '';
+        return el(
+          'li',
+          { className: cls },
+          el('span', { className: 'rank', textContent: inGame ? String(i + 1) : '' }),
+          avatar(p.name),
+          el(
+            'span',
+            { className: 'who' },
+            el('span', { className: 'name', textContent: p.name, title: p.name }, ...(p.host ? [el('span', { className: 'crown', textContent: '👑', title: 'Host' })] : [])),
+            ...(status ? [el('span', { className: 'status', textContent: status })] : []),
+          ),
+          el('span', { className: 'score', textContent: String(p.score) }),
+        );
       }),
   );
 
@@ -218,43 +238,69 @@ function render() {
   const isHost = meP?.host ?? false;
   const connected = s.players.filter((p) => p.connected).length;
   if (s.phase === 'lobby' || s.phase === 'finished') {
-    const start = el('button', { type: 'button', className: 'primary', textContent: s.phase === 'finished' ? 'Play again' : 'Start game' });
-    start.disabled = !isHost || connected < 2;
-    start.onclick = () => send({ t: 'start' });
+    const host = s.players.find((p) => p.host);
     const ranking = [...s.players].sort((a, b) => b.score - a.score);
-    showOverlay(
-      el('h1', { textContent: s.phase === 'finished' ? `🏆 ${ranking[0]?.name ?? ''} wins!` : '🎨 Sketch Party' }),
-      el('p', {
-        textContent:
-          s.phase === 'finished'
-            ? ranking.slice(0, 3).map((p, i) => `${['🥇', '🥈', '🥉'][i]} ${p.name} ${p.score}`).join('   ')
-            : 'Take turns drawing a secret word while everyone else races to guess it.',
-      }),
-      settingsPanel(s.settings, isHost, connected),
-      el('p', {
-        textContent: connected < 2 ? 'Waiting for at least one more player to join the activity…' : isHost ? `${connected} players ready.` : `Waiting for the host to start (${connected} players).`,
-      }),
-      start,
-    );
+    const head: Node[] = [];
+    if (s.phase === 'finished') {
+      const tie = ranking.length > 1 && ranking[0]!.score === ranking[1]!.score;
+      head.push(
+        el('div', { className: 'eyebrow', textContent: 'Game over' }),
+        el('h1', { textContent: tie ? 'It’s a tie!' : `${ranking[0]?.name ?? ''} wins!` }),
+        podium(ranking),
+      );
+    } else {
+      head.push(
+        el('div', { className: 'logo', textContent: '🎨' }),
+        el('h1', { textContent: 'Sketch Party' }),
+        el('p', { className: 'sub', textContent: 'Take turns drawing a secret word while everyone else races to guess it.' }),
+      );
+    }
+    let footer: Node;
+    if (connected < 2) {
+      footer = waiting('Waiting for one more player to join…');
+    } else if (isHost) {
+      const start = el('button', { type: 'button', className: 'primary', textContent: s.phase === 'finished' ? 'Play again' : `Start game · ${connected} players` });
+      start.onclick = () => send({ t: 'start' });
+      footer = start;
+    } else {
+      footer = waiting(`Waiting for ${host?.name ?? 'the host'} to start…`);
+    }
+    showOverlay(card(...head, settingsPanel(s.settings, isHost, connected, s.phase === 'finished'), footer));
   } else if (s.phase === 'choosing') {
     if (s.drawerId === me && choices) {
       showOverlay(
-        el('h1', { textContent: 'Pick a word to draw' }),
-        el(
-          'div',
-          { className: 'choices' },
-          ...choices.words.map((w, i) => {
-            const b = el('button', { type: 'button', className: 'word', textContent: w });
-            b.onclick = () => send({ t: 'pick', index: i });
-            return b;
-          }),
+        card(
+          el('div', { className: 'eyebrow', textContent: 'Your turn' }),
+          el('h1', { textContent: 'Pick a word to draw' }),
+          el(
+            'div',
+            { className: 'choices' },
+            ...choices.words.map((w, i) => {
+              const b = el('button', { type: 'button', className: 'word', textContent: w });
+              b.onclick = () => send({ t: 'pick', index: i });
+              return b;
+            }),
+          ),
         ),
       );
     } else {
-      showOverlay(el('h1', { textContent: `${drawer?.name ?? 'Someone'} is choosing a word…` }));
+      showOverlay(
+        card(
+          ...(drawer ? [avatar(drawer.name, 'lg')] : []),
+          el('h1', { className: 'small', textContent: `${drawer?.name ?? 'Someone'} is choosing a word` }),
+          waiting('Get ready to guess'),
+        ),
+      );
     }
   } else if (s.phase === 'reveal') {
-    showOverlay(el('h1', { textContent: s.word ? `The word was “${s.word}”` : 'Time’s up!' }));
+    showOverlay(
+      card(
+        el('div', { className: 'eyebrow', textContent: s.word ? 'The word was' : 'Time’s up!' }),
+        ...(s.word ? [el('div', { className: 'reveal-word', textContent: s.word })] : []),
+        roundScores(s),
+      ),
+    );
+    overlay.classList.add('peek');
   } else {
     hideOverlay();
   }
@@ -283,18 +329,36 @@ function chips<T extends number | string>(options: readonly T[], current: T, lab
   );
 }
 
-function settingsPanel(settings: GameSettings, isHost: boolean, players: number) {
+function settingsPanel(settings: GameSettings, isHost: boolean, players: number, next: boolean) {
+  const estimate = estimateMinutes(settings, players);
+  const timeNote = settings.mode === 'time' ? ' (last turn finishes after time is up)' : '';
+  // Non-hosts can't change anything, so a row of disabled chips is just noise. Show one line instead.
+  if (!isHost) {
+    return el(
+      'div',
+      { className: 'settings summary' },
+      el('span', { className: 'label', textContent: next ? 'Next game' : 'Game' }),
+      el('span', { textContent: `${describeGoal(settings)} · ${settings.drawSeconds}s per drawing · ${formatEstimate(estimate)}${timeNote}` }),
+    );
+  }
   const update = (next: Partial<GameSettings>) => {
     const merged = { ...settings, ...next };
     // Switching mode picks a sensible value for that mode.
     if (next.mode && next.mode !== settings.mode) merged.value = next.mode === 'time' ? 10 : next.mode === 'points' ? 500 : 1;
     send({ t: 'settings', settings: merged });
   };
-  const estimate = estimateMinutes(settings, players);
+  const summary = `${describeGoal(settings)} · ${settings.drawSeconds}s per drawing · ${formatEstimate(estimate)}`;
+  // After a game the host mostly wants "Play again", so the controls start collapsed there.
+  if (next && !settingsOpen) {
+    const edit = el('button', { type: 'button', className: 'link', textContent: 'Change' });
+    edit.onclick = () => ((settingsOpen = true), render());
+    return el('div', { className: 'settings summary' }, el('span', { className: 'label', textContent: 'Next game' }), el('span', { textContent: summary }), edit);
+  }
   const panel = el(
     'div',
     { className: 'settings' },
-    el('div', { className: 'row' }, el('span', { className: 'label', textContent: 'Game ends by' }), chips(['time', 'points', 'rounds'] as GoalMode[], settings.mode, (m) => MODE_LABELS[m], isHost, (mode) => update({ mode }))),
+    el('div', { className: 'settings-title', textContent: next ? 'Next game' : 'Game settings' }),
+    el('div', { className: 'row' }, el('span', { className: 'label', textContent: 'Ends by' }), chips(['time', 'points', 'rounds'] as GoalMode[], settings.mode, (m) => MODE_LABELS[m], isHost, (mode) => update({ mode }))),
     el(
       'div',
       { className: 'row' },
@@ -309,12 +373,81 @@ function settingsPanel(settings: GameSettings, isHost: boolean, players: number)
     ),
     el('div', {
       className: 'estimate',
-      textContent:
-        `${describeGoal(settings)} · ${formatEstimate(estimate)} with ${Math.max(2, players)} players` + (settings.mode === 'time' ? ' (the last turn finishes after time is up)' : ''),
+      textContent: `${describeGoal(settings)} · ${formatEstimate(estimate)} with ${Math.max(2, players)} players${timeNote}`,
     }),
   );
-  if (!isHost) panel.append(el('div', { className: 'hint-small', textContent: 'Only the host can change these.' }));
   return panel;
+}
+
+// ── Overlay building blocks ────────────────────────────────────────────────
+
+function card(...children: Node[]) {
+  return el('div', { className: 'card' }, ...children);
+}
+
+function waiting(text: string) {
+  return el('div', { className: 'waiting' }, el('span', { className: 'dots' }, el('i'), el('i'), el('i')), text);
+}
+
+/** Initial-letter avatar with a stable per-name colour. */
+function avatar(name: string, size = '') {
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.codePointAt(0)!) % 360;
+  const a = el('span', { className: `avatar ${size}`, textContent: [...name.trim()][0]?.toUpperCase() ?? '?' });
+  a.style.setProperty('--hue', String(h));
+  return a;
+}
+
+function podium(ranking: PlayerView[]) {
+  const top = ranking.slice(0, 3);
+  const order = [1, 0, 2].filter((i) => top[i]);
+  const wrap = el(
+    'div',
+    { className: 'podium-wrap' },
+    el(
+      'div',
+      { className: 'podium' },
+      ...order.map((i) => {
+        const p = top[i]!;
+        return el(
+          'div',
+          { className: `step place-${i + 1}${p.id === me ? ' me' : ''}` },
+          ...(i === 0 ? [el('span', { className: 'winner-crown', textContent: '👑' })] : []),
+          avatar(p.name, i === 0 ? 'xl' : 'lg'),
+          el('div', { className: 'step-name', textContent: p.name, title: p.name }),
+          el('div', { className: 'step-score', textContent: `${p.score} pts` }),
+          el('div', { className: 'block', textContent: String(i + 1) }),
+        );
+      }),
+    ),
+  );
+  const rest = ranking.slice(3);
+  if (rest.length) {
+    wrap.append(
+      el(
+        'ol',
+        { className: 'rest', start: 4 },
+        ...rest.map((p) => el('li', { className: p.id === me ? 'me' : '' }, el('span', { textContent: p.name }), el('span', { className: 'score', textContent: String(p.score) }))),
+      ),
+    );
+  }
+  return wrap;
+}
+
+/** Points each player picked up this turn. */
+function roundScores(s: StateMessage) {
+  const gains = s.players
+    .map((p) => ({ p, d: p.score - (turnStartScores.get(p.id) ?? p.score) }))
+    .filter((g) => g.d > 0)
+    .sort((a, b) => b.d - a.d);
+  if (!gains.length) return el('p', { className: 'sub', textContent: 'Nobody got it this time.' });
+  return el(
+    'ul',
+    { className: 'gains' },
+    ...gains.map(({ p, d }) =>
+      el('li', { className: p.id === me ? 'me' : '' }, avatar(p.name), el('span', { className: 'name', textContent: p.name + (p.id === s.drawerId ? ' ✏️' : '') }), el('span', { className: 'plus', textContent: `+${d}` })),
+    ),
+  );
 }
 
 function renderProgress() {
@@ -356,6 +489,10 @@ function onMessage(msg: ServerMessage) {
       clockOffset = msg.now - Date.now();
       if (msg.phase !== 'choosing') choices = null;
       if (prevPhase === 'drawing' && msg.phase !== 'drawing') endStroke();
+      if (msg.phase !== prevPhase) settingsOpen = false;
+      if (msg.phase === 'choosing' || (msg.phase === 'drawing' && prevPhase !== 'drawing' && prevPhase !== 'choosing')) {
+        turnStartScores = new Map(msg.players.map((p) => [p.id, p.score]));
+      }
       render();
       tick();
       break;
