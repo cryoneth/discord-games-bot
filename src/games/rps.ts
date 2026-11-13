@@ -40,9 +40,9 @@ const choiceRow = (id: string) =>
 
 /** Two quick edits that build suspense before the reveal. */
 async function suspense(edit: (c: Card) => Promise<unknown>, body: string): Promise<void> {
-  await edit({ color: COLOR, title: TITLE, body: `${body}\n\n# 🪨 Rock…` });
+  await edit({ color: COLOR, title: TITLE, body: `${body}\n\n# ✊ 3…` });
   await sleep(700);
-  await edit({ color: COLOR, title: TITLE, body: `${body}\n\n# 🪨 Rock… 📄 Paper…` });
+  await edit({ color: COLOR, title: TITLE, body: `${body}\n\n# ✊ 3… 2… 1…` });
   await sleep(700);
 }
 
@@ -121,7 +121,7 @@ const RPS_DUEL: DuelGame = {
       await edit({
         color: COLOR,
         title: `${TITLE} · Round ${round}`,
-        body: `# ✂️ Scissors… Shoot!\n${w ? `**<@${players[w - 1]}> takes the round!**` : '**Tie! Go again.**'}\n${score()}`,
+        body: `# 💥 Shoot!\n${w ? `**<@${players[w - 1]}> takes the round!**` : '**Tie! Go again.**'}\n${score()}`,
         image: lastImage,
       });
       await sleep(2800);
@@ -190,9 +190,9 @@ async function playBot(interaction: ChatInputCommandInteraction): Promise<void> 
 
     const mine = action as RpsChoice;
     if (!RPS.includes(mine)) continue;
-    await btn.update(card({ color: COLOR, title: TITLE, body: `${tallyLine()}\n\n# 🪨 Rock…` })).catch(() => {});
+    await btn.update(card({ color: COLOR, title: TITLE, body: `${tallyLine()}\n\n# ✊ 3…` })).catch(() => {});
     await sleep(600);
-    await msg.edit(card({ color: COLOR, title: TITLE, body: `${tallyLine()}\n\n# 🪨 Rock… 📄 Paper…` })).catch(() => {});
+    await msg.edit(card({ color: COLOR, title: TITLE, body: `${tallyLine()}\n\n# ✊ 3… 2… 1…` })).catch(() => {});
     await sleep(600);
 
     const bot = pick(RPS);
@@ -206,7 +206,7 @@ async function playBot(interaction: ChatInputCommandInteraction): Promise<void> 
         card({
           color: w === 1 ? 0x57f287 : w === 2 ? 0xed4245 : 0x99aab5,
           title: `${TITLE} vs the bot`,
-          body: `# ✂️ Scissors… Shoot!\n${verdict}\n${tallyLine()}`,
+          body: `# 💥 Shoot!\n${verdict}\n${tallyLine()}`,
           image: sceneImage(rpsScene(mine, bot, w), `vsbot-${round}`, `You: ${mine}, bot: ${bot}`, w === 1),
           footer: 'You (left) vs the bot (right)',
           rows: [
