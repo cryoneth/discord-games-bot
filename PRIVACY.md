@@ -15,7 +15,8 @@ That is all. No usernames, nicknames, avatars, emails, IP addresses, message con
 
 - **Drawing Activity:** display names, drawings, guesses and in-game chat. These are discarded when the game ends or everyone leaves.
 - **OAuth access token:** sent by the Activity once so the server can confirm who the player is with Discord. It is never stored or logged.
-- **Chat games:** button clicks during a game.
+- **Chat games:** button clicks, word guesses and would-you-rather votes during a game. Votes are anonymous and discarded when voting closes.
+- **Game images:** boards and animations are drawn in memory and uploaded to Discord as message attachments. They contain only the game state (no usernames) and are never saved on the server.
 
 ## Data we never access
 

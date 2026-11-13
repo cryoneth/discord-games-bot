@@ -11,6 +11,7 @@ import {
   SlashCommandBuilder,
 } from 'discord.js';
 import type { GameId, ScoreStore } from '../store.js';
+import { card } from '../ui/card.js';
 import { log } from '../util/log.js';
 
 const GAME_CHOICES: { name: string; value: GameId }[] = [
@@ -68,18 +69,16 @@ export async function handleLeaderboard(interaction: ChatInputCommandInteraction
   const rows = store.leaderboard(interaction.guildId, game, 10);
   const label = GAME_CHOICES.find((g) => g.value === game)?.name ?? 'All games';
   const medals = ['🥇', '🥈', '🥉'];
-  await interaction.reply({
-    embeds: [
-      new EmbedBuilder()
-        .setColor(0xfee75c)
-        .setTitle(`🏆 Leaderboard · ${label}`)
-        .setDescription(
-          rows.length
-            ? rows.map((r, i) => `${medals[i] ?? `**${i + 1}.**`} <@${r.user_id}> — ${r.points} pts · ${r.wins} wins · ${r.games_played} games`).join('\n')
-            : 'No scores yet. Try `/trivia start`, `/wordguess start`, `/tictactoe` or `/draw`!',
-        ),
-    ],
-  });
+  await interaction.reply(
+    card({
+      color: 0xfee75c,
+      title: `🏆 Leaderboard · ${label}`,
+      body: rows.length
+        ? rows.map((r, i) => `${medals[i] ?? `\`${String(i + 1).padStart(2)}\``} <@${r.user_id}> · **${r.points}** pts · ${r.wins} 🏅 · ${r.games_played} played`).join('\n')
+        : 'No scores yet. Try `/trivia start`, `/wordguess start`, `/tictactoe` or `/draw`!',
+      footer: 'Scores expire after a period of inactivity · /privacy for your data',
+    }),
+  );
 }
 
 export function privacyText(retentionDays: number): string {

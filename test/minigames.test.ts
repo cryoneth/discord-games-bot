@@ -4,7 +4,9 @@ import { fourInARow, ticTacToe } from '../src/games/boardgames.js';
 import { VALID_GUESSES } from '../src/games/data/dictionary.js';
 import { ANSWERS } from '../src/games/data/fiveletter.js';
 import { WYR } from '../src/games/data/wyr.js';
-import { dropPiece, lineWinner, rpsWinner, scoreGuess, type Cell } from '../src/games/logic.js';
+import { dropPiece, lineWinner, rpsWinner, scoreGuess, winningLine, type Cell } from '../src/games/logic.js';
+import { bannerScene, rpsScene, wordGridScene } from '../src/render/boards.js';
+import { card, sceneImage } from '../src/ui/card.js';
 import { voteSummary } from '../src/games/wyr.js';
 
 test('lineWinner finds rows, columns and both diagonals', () => {
@@ -53,8 +55,42 @@ test('four in a row: vertical win and view renders', () => {
   assert.equal(g.result(1), null);
   g.move('3', 0);
   assert.deepEqual(g.result(0), { kind: 'win', winner: 0 });
-  const view = g.view('fourinarow:x', ['a', 'b'], 0, { kind: 'win', winner: 0 });
-  assert.equal(view.components?.length, 2);
+  assert.equal(g.buttons('fourinarow:x', true).length, 2);
+  const scene = g.scene();
+  assert.ok(scene.w > 0 && scene.h > 0);
+});
+
+test('winningLine returns the cells of the line', () => {
+  const b = [...'000111000'].map(Number) as Cell[];
+  assert.deepEqual(winningLine(b, 3, 3, 3), [3, 4, 5]);
+  assert.deepEqual(winningLine(Array(9).fill(0) as Cell[], 3, 3, 3), []);
+});
+
+test('renderers produce valid PNGs and looping GIFs', () => {
+  const t = ticTacToe();
+  t.move('0', 0);
+  const still = sceneImage(t.scene(), 'b', 'board');
+  assert.equal(still.name, 'b.png');
+  assert.deepEqual([...still.data.subarray(1, 4)].map((c) => String.fromCharCode(c)).join(''), 'PNG');
+
+  const word = wordGridScene([{ word: 'crane', score: scoreGuess('crane', 'crane') }], 6, 0);
+  const anim = sceneImage(word, 'w', 'grid', true);
+  assert.equal(anim.name, 'w.gif');
+  assert.equal(anim.data.subarray(0, 6).toString('ascii'), 'GIF89a');
+  assert.ok(anim.data.length < 2_000_000, 'GIF stays small');
+
+  for (const s of [rpsScene('rock', 'paper', 2), bannerScene('A VERY LONG TITLE THAT MUST SHRINK TO FIT', 'sub', '#fff')]) {
+    assert.ok(sceneImage(s, 'x', 'x').data.length > 1000);
+  }
+});
+
+test('card builds a Components V2 payload with the image attached', () => {
+  const c = card({ color: 1, title: 'T', body: 'B', image: { name: 'i.png', data: Buffer.from('x') }, footer: 'F' });
+  assert.equal(c.files.length, 1);
+  assert.deepEqual(c.attachments, []);
+  const json = JSON.stringify(c.components[0]!.toJSON());
+  assert.match(json, /attachment:\/\/i\.png/);
+  assert.match(json, /### T\\nB/);
 });
 
 test('scoreGuess handles repeated letters like the classic rules', () => {

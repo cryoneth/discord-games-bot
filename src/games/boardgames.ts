@@ -1,24 +1,15 @@
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ChatInputCommandInteraction,
-  EmbedBuilder,
-  InteractionContextType,
-  SlashCommandBuilder,
-} from 'discord.js';
+import { ButtonBuilder, ButtonStyle, ChatInputCommandInteraction, InteractionContextType, SlashCommandBuilder } from 'discord.js';
+import { fourInARowScene, ticTacToeScene } from '../render/boards.js';
 import type { ScoreStore } from '../store.js';
-import { forfeitButton, openChallenge, opponentOption, playTurns, statusLine, type TurnGame } from './duel.js';
-import { dropPiece, isFull, lineWinner, type Cell } from './logic.js';
+import { ROW } from '../ui/card.js';
+import { opponentOption, runDuel, turnBased, type TurnGame } from './duel.js';
+import { dropPiece, isFull, winningLine, type Cell } from './logic.js';
 
 interface Deps {
   store: ScoreStore;
 }
 
 // ── Tic-tac-toe ──────────────────────────────────────────────────────────────
-
-const TTT_COLOR = 0x3ba55c;
-const TTT_MARKS: [string, string] = ['❌', '⭕'];
 
 export const tictactoeCommand = new SlashCommandBuilder()
   .setName('tictactoe')
@@ -28,59 +19,51 @@ export const tictactoeCommand = new SlashCommandBuilder()
 
 export function ticTacToe(): TurnGame {
   const board: Cell[] = Array(9).fill(0);
+  let last = -1;
+  const win = () => winningLine(board, 3, 3, 3);
   return {
+    marks: ['❌', '⭕'],
     move(action, seat) {
       const i = Number(action);
       if (!Number.isInteger(i) || i < 0 || i > 8 || board[i] !== 0) return false;
       board[i] = (seat + 1) as Cell;
+      last = i;
       return true;
     },
     result(lastMover) {
-      if (lineWinner(board, 3, 3, 3)) return { kind: 'win', winner: lastMover };
+      if (win().length) return { kind: 'win', winner: lastMover };
       return isFull(board) ? { kind: 'draw' } : null;
     },
-    view(id, players, turn, ending) {
-      const rows = [0, 1, 2].map((r) =>
-        new ActionRowBuilder<ButtonBuilder>().addComponents(
+    scene: () => ticTacToeScene(board, last, win()),
+    buttons(id, disabled) {
+      const line = win();
+      // A keypad mirroring the board image.
+      return [0, 1, 2].map((r) =>
+        ROW().addComponents(
           [0, 1, 2].map((c) => {
             const i = r * 3 + c;
-            const b = new ButtonBuilder().setCustomId(`${id}:${i}`).setDisabled(Boolean(ending) || board[i] !== 0);
-            if (board[i] === 0) return b.setLabel('​').setStyle(ButtonStyle.Secondary);
-            return b.setEmoji(TTT_MARKS[board[i]! - 1]!).setStyle(board[i] === 1 ? ButtonStyle.Primary : ButtonStyle.Danger);
+            const b = new ButtonBuilder().setCustomId(`${id}:${i}`).setDisabled(disabled || board[i] !== 0);
+            if (board[i] === 0) return b.setLabel(String(i + 1)).setStyle(ButtonStyle.Secondary);
+            return b
+              .setEmoji(board[i] === 1 ? '❌' : '⭕')
+              .setStyle(line.includes(i) ? ButtonStyle.Success : board[i] === 1 ? ButtonStyle.Danger : ButtonStyle.Primary);
           }),
         ),
       );
-      rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(forfeitButton(id, Boolean(ending))));
-      return {
-        embeds: [
-          new EmbedBuilder()
-            .setColor(TTT_COLOR)
-            .setTitle('❌⭕ Tic-tac-toe')
-            .setDescription(`${TTT_MARKS[0]} <@${players[0]}> vs ${TTT_MARKS[1]} <@${players[1]}>\n\n${statusLine(players, turn, ending, TTT_MARKS)}`),
-        ],
-        components: rows,
-      };
     },
   };
 }
 
+const TIC_TAC_TOE = turnBased({ id: 'tictactoe', title: '❌⭕ Tic-tac-toe', color: 0x2ee6c5, create: ticTacToe });
+
 export async function handleTicTacToe(interaction: ChatInputCommandInteraction, deps: Deps): Promise<void> {
-  const duel = await openChallenge(interaction, '❌⭕ Tic-tac-toe challenge', TTT_COLOR);
-  if (!duel) return;
-  try {
-    await playTurns(duel, ticTacToe(), 'tictactoe', deps.store, interaction.guildId);
-  } finally {
-    duel.release();
-  }
+  await runDuel(interaction, TIC_TAC_TOE, deps.store);
 }
 
 // ── Four in a row ────────────────────────────────────────────────────────────
 
-const C4_COLOR = 0xfaa61a;
 const C4_W = 7;
 const C4_H = 6;
-const C4_MARKS: [string, string] = ['🔴', '🟡'];
-const C4_NUMBERS = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣'];
 
 export const fourInARowCommand = new SlashCommandBuilder()
   .setName('fourinarow')
@@ -91,7 +74,9 @@ export const fourInARowCommand = new SlashCommandBuilder()
 export function fourInARow(): TurnGame {
   const board: Cell[] = Array(C4_W * C4_H).fill(0);
   let last = -1;
+  const win = () => winningLine(board, C4_W, C4_H, 4);
   return {
+    marks: ['🔴', '🟡'],
     move(action, seat) {
       const col = Number(action);
       if (!Number.isInteger(col)) return false;
@@ -101,51 +86,26 @@ export function fourInARow(): TurnGame {
       return true;
     },
     result(lastMover) {
-      if (lineWinner(board, C4_W, C4_H, 4)) return { kind: 'win', winner: lastMover };
+      if (win().length) return { kind: 'win', winner: lastMover };
       return isFull(board) ? { kind: 'draw' } : null;
     },
-    view(id, players, turn, ending) {
-      const grid: string[] = [];
-      for (let y = 0; y < C4_H; y++) {
-        let row = '';
-        for (let x = 0; x < C4_W; x++) {
-          const c = board[y * C4_W + x]!;
-          row += c === 0 ? '⚫' : C4_MARKS[c - 1];
-        }
-        grid.push(row);
-      }
-      grid.push(C4_NUMBERS.join(''));
+    scene: () => fourInARowScene(board, C4_W, C4_H, last, win()),
+    buttons(id, disabled) {
       const lastCol = last === -1 ? -1 : last % C4_W;
-      const colButton = (x: number) =>
+      const col = (x: number) =>
         new ButtonBuilder()
           .setCustomId(`${id}:${x}`)
-          .setLabel(String(x + 1))
+          .setLabel(`${x + 1}`)
+          .setEmoji('⬇️')
           .setStyle(x === lastCol ? ButtonStyle.Primary : ButtonStyle.Secondary)
-          .setDisabled(Boolean(ending) || board[x] !== 0);
-      return {
-        embeds: [
-          new EmbedBuilder()
-            .setColor(C4_COLOR)
-            .setTitle('🔴🟡 Four in a row')
-            .setDescription(
-              `${C4_MARKS[0]} <@${players[0]}> vs ${C4_MARKS[1]} <@${players[1]}>\n\n${grid.join('\n')}\n\n${statusLine(players, turn, ending, C4_MARKS)}`,
-            ),
-        ],
-        components: [
-          new ActionRowBuilder<ButtonBuilder>().addComponents([0, 1, 2, 3].map(colButton)),
-          new ActionRowBuilder<ButtonBuilder>().addComponents(...[4, 5, 6].map(colButton), forfeitButton(id, Boolean(ending))),
-        ],
-      };
+          .setDisabled(disabled || board[x] !== 0);
+      return [ROW().addComponents([0, 1, 2, 3].map(col)), ROW().addComponents([4, 5, 6].map(col))];
     },
   };
 }
 
+const FOUR_IN_A_ROW = turnBased({ id: 'fourinarow', title: '🔴🟡 Four in a row', color: 0x4c6fff, create: fourInARow });
+
 export async function handleFourInARow(interaction: ChatInputCommandInteraction, deps: Deps): Promise<void> {
-  const duel = await openChallenge(interaction, '🔴🟡 Four in a row challenge', C4_COLOR);
-  if (!duel) return;
-  try {
-    await playTurns(duel, fourInARow(), 'fourinarow', deps.store, interaction.guildId);
-  } finally {
-    duel.release();
-  }
+  await runDuel(interaction, FOUR_IN_A_ROW, deps.store);
 }

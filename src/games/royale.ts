@@ -1,15 +1,15 @@
 import {
-  ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
   ChatInputCommandInteraction,
   ComponentType,
-  EmbedBuilder,
   InteractionContextType,
   MessageFlags,
   SlashCommandBuilder,
 } from 'discord.js';
+import { bannerScene } from '../render/boards.js';
 import type { ScoreStore } from '../store.js';
+import { card, ROW, sceneImage } from '../ui/card.js';
 import { pick, rand, shuffle, sleep } from '../util/random.js';
 import { ELIMINATIONS, FLAVOR, REVIVALS, SOLO_ELIMINATIONS } from './data/royale.js';
 import type { ChannelSessions } from './sessions.js';
@@ -57,24 +57,26 @@ export async function handleRoyale(interaction: ChatInputCommandInteraction, dep
     const closesAt = Math.floor(Date.now() / 1000) + joinSeconds;
     const nonce = Date.now().toString(36);
 
-    const lobbyEmbed = (closed: boolean) =>
-      new EmbedBuilder()
-        .setColor(COLOR)
-        .setTitle('⚔️ Battle royale lobby')
-        .setDescription(
-          (closed ? 'The lobby is closed.' : `Click **Join** to enter. The game starts <t:${closesAt}:R>.`) +
-            `\nHost: <@${hostId}>\n\n**Players (${players.size}/${MAX_PLAYERS})**\n` +
-            [...players].slice(0, 40).map((id) => `<@${id}>`).join(' ') +
-            (players.size > 40 ? ` and ${players.size - 40} more` : ''),
-        );
+    const lobbyCard = (closed: boolean) =>
+      card({
+        color: COLOR,
+        title: '⚔️ Battle royale lobby',
+        body:
+          (closed ? 'The lobby is closed. Let the chaos begin!' : `Click **Join** to enter. The game starts <t:${closesAt}:R>.`) +
+          `\nHost: <@${hostId}>\n\n**Players (${players.size}/${MAX_PLAYERS})**\n` +
+          [...players].slice(0, 40).map((id) => `<@${id}>`).join(' ') +
+          (players.size > 40 ? ` and ${players.size - 40} more` : ''),
+        footer: 'Needs at least 2 players',
+        rows: closed ? [] : [lobbyButtons(false)],
+      });
     const lobbyButtons = (disabled: boolean) =>
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
+      ROW().addComponents(
         new ButtonBuilder().setCustomId(`royale:${nonce}:join`).setLabel('Join').setEmoji('⚔️').setStyle(ButtonStyle.Success).setDisabled(disabled),
         new ButtonBuilder().setCustomId(`royale:${nonce}:leave`).setLabel('Leave').setStyle(ButtonStyle.Secondary).setDisabled(disabled),
         new ButtonBuilder().setCustomId(`royale:${nonce}:start`).setLabel('Start now (host)').setStyle(ButtonStyle.Primary).setDisabled(disabled),
       );
 
-    const reply = await interaction.reply({ embeds: [lobbyEmbed(false)], components: [lobbyButtons(false)], withResponse: true });
+    const reply = await interaction.reply({ ...lobbyCard(false), withResponse: true });
     const lobby = reply.resource?.message;
     if (!lobby) throw new Error('Lobby message missing from interaction response');
 
@@ -113,12 +115,12 @@ export async function handleRoyale(interaction: ChatInputCommandInteraction, dep
         return;
       }
       // Updating via the interaction response keeps us well inside rate limits.
-      await btn.update({ embeds: [lobbyEmbed(false)], components: [lobbyButtons(false)] }).catch(() => {});
+      await btn.update(lobbyCard(false)).catch(() => {});
     });
 
     await new Promise<void>((resolve) => collector.once('end', () => resolve()));
     abort.signal.removeEventListener('abort', onAbort);
-    await lobby.edit({ embeds: [lobbyEmbed(true)], components: [lobbyButtons(true)] }).catch(() => {});
+    await lobby.edit(lobbyCard(true)).catch(() => {});
 
     if (abort.signal.aborted) {
       await channel.send({ content: '🛑 The battle royale was cancelled.' });
@@ -130,15 +132,15 @@ export async function handleRoyale(interaction: ChatInputCommandInteraction, dep
     }
 
     const { winner, kills, rounds } = await simulate([...players], abort.signal, async (round, lines, alive) => {
-      await channel.send({
-        embeds: [
-          new EmbedBuilder()
-            .setColor(COLOR)
-            .setTitle(`Round ${round}`)
-            .setDescription(lines.join('\n'))
-            .setFooter({ text: `${alive} player${alive === 1 ? '' : 's'} remaining` }),
-        ],
-      });
+      const total = players.size;
+      await channel.send(
+        card({
+          color: COLOR,
+          title: `⚔️ Round ${round}`,
+          body: lines.join('\n'),
+          footer: `${alive} of ${total} player${total === 1 ? '' : 's'} still standing`,
+        }),
+      );
     });
 
     if (abort.signal.aborted || !winner) {
@@ -153,17 +155,16 @@ export async function handleRoyale(interaction: ChatInputCommandInteraction, dep
     );
 
     const topKillers = [...kills.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
-    await channel.send({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(0xfee75c)
-          .setTitle('🏆 We have a winner!')
-          .setDescription(
-            `<@${winner}> is the last one standing after ${rounds} rounds!` +
-              (topKillers.length ? `\n\n**Most eliminations**\n${topKillers.map(([id, k]) => `<@${id}> — ${k}`).join('\n')}` : ''),
-          ),
-      ],
-    });
+    await channel.send(
+      card({
+        color: 0xfee75c,
+        title: '🏆 We have a winner!',
+        body:
+          `**<@${winner}>** is the last one standing after ${rounds} rounds!` +
+          (topKillers.length ? `\n\n**Most eliminations**\n${topKillers.map(([id, k]) => `<@${id}> · ${k}`).join('\n')}` : ''),
+        image: sceneImage(bannerScene('LAST ONE STANDING', `${players.size} entered · ${rounds} rounds`, '#ff5470'), 'winner', 'Battle royale winner', true),
+      }),
+    );
   } finally {
     deps.sessions.end(interaction.channelId);
   }

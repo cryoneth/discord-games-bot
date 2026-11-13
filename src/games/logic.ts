@@ -15,6 +15,12 @@ const DIRECTIONS = [
 
 /** Returns the player with `need` in a row anywhere on the board, or 0. */
 export function lineWinner(board: readonly Cell[], width: number, height: number, need: number): Cell {
+  const line = winningLine(board, width, height, need);
+  return line.length ? board[line[0]!]! : 0;
+}
+
+/** Board indices of the first winning line found (empty if none). */
+export function winningLine(board: readonly Cell[], width: number, height: number, need: number): number[] {
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const c = board[y * width + x];
@@ -27,11 +33,11 @@ export function lineWinner(board: readonly Cell[], width: number, height: number
           if (nx < 0 || ny < 0 || nx >= width || ny >= height || board[ny * width + nx] !== c) break;
           k++;
         }
-        if (k === need) return c;
+        if (k === need) return Array.from({ length: need }, (_, j) => (y + dy * j) * width + (x + dx * j));
       }
     }
   }
-  return 0;
+  return [];
 }
 
 export function isFull(board: readonly Cell[]): boolean {

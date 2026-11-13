@@ -22,7 +22,7 @@ Also: `/leaderboard`, `/privacy`, `/server-data wipe`.
 - **User controls.** `/privacy my-data` exports a user's data, `/privacy forget-me` deletes it and `/privacy opt-out` stops tracking. Admins can delete all of a server's data with `/server-data wipe`.
 - **No pings.** Every message the bot posts has mentions disabled, so it can never ping `@everyone`, roles or users.
 - **Activity sandbox.** The drawing game runs inside Discord's sandboxed iframe, and every request goes through Discord's proxy, so the server never sees players' IP addresses. It uses the `identify` OAuth scope only. Players are checked with Discord to confirm they're really in that Activity instance.
-- **No third parties.** No analytics, trackers, CDNs or outside APIs other than Discord itself.
+- **No third parties.** No analytics, trackers, CDNs or outside APIs other than Discord itself. Board images and animations are drawn on the server in memory with bundled fonts, contain no usernames and are never saved.
 - **Hardened deploy.** The container runs as a non-root user with a read-only filesystem and all Linux capabilities dropped. HTTPS is handled by Caddy, and no access logs are written.
 
 See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md).
@@ -72,6 +72,8 @@ src/
   index.ts            bot entrypoint (Discord client + web server)
   register.ts         slash command registration
   store.ts            SQLite score store (node:sqlite)
+  render/             board images and confetti GIFs (@napi-rs/canvas + gifenc)
+  ui/card.ts          Components V2 message cards shared by every game
   games/              all chat games, duel/turn helpers, pure rules (logic.ts), session lock, content
   commands/           /draw, /leaderboard, /privacy, /server-data
   activity/server.ts  HTTP + WebSocket server for the drawing Activity
@@ -81,4 +83,4 @@ activity/             Activity frontend (Vite, vanilla TypeScript)
 test/                 node:test suites
 ```
 
-`npm run typecheck` · `npm test` · `npm run build`
+`npm run typecheck` · `npm test` · `npm run build` · `npx tsx scripts/preview-images.ts <dir>` renders every game image for a visual check

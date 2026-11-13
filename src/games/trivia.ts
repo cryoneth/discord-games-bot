@@ -1,22 +1,23 @@
 import {
-  ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
   ChatInputCommandInteraction,
   ComponentType,
-  EmbedBuilder,
   InteractionContextType,
   MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
 } from 'discord.js';
+import { bannerScene } from '../render/boards.js';
 import type { ScoreStore } from '../store.js';
+import { card, ROW, sceneImage } from '../ui/card.js';
 import { pick, shuffle, sleep } from '../util/random.js';
 import { CATEGORY_LABELS, TRIVIA, type TriviaCategory } from './data/trivia.js';
 import type { ChannelSessions } from './sessions.js';
 
 const LETTERS = ['A', 'B', 'C', 'D'] as const;
 const COLOR = 0x5865f2;
+const MEDALS = ['🥇', '🥈', '🥉'];
 
 export const triviaCommand = new SlashCommandBuilder()
   .setName('trivia')
@@ -69,20 +70,23 @@ export async function handleTrivia(interaction: ChatInputCommandInteraction, dep
   }
 
   const scores = new Map<string, number>();
+  const progress = (i: number) => pool.map((_, k) => (k < i ? '●' : k === i ? '◉' : '○')).join('');
+  const standings = (n: number) => {
+    const ranking = [...scores.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
+    return ranking.map(([id, pts], idx) => `${MEDALS[idx] ?? `**${idx + 1}.**`} <@${id}> ${pts}`).join('  ');
+  };
   try {
-    await interaction.reply({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(COLOR)
-          .setTitle('🧠 Trivia is starting!')
-          .setDescription(
-            `**${pool.length} questions** · ${category ? CATEGORY_LABELS[category] : 'Mixed categories'} · ${seconds}s each\n` +
-              'Click a button to lock in your answer. Faster correct answers score more.\n' +
-              `Host: <@${interaction.user.id}>`,
-          )
-          .setFooter({ text: '/trivia stop to end early' }),
-      ],
-    });
+    await interaction.reply(
+      card({
+        color: COLOR,
+        title: '🧠 Trivia is starting!',
+        body:
+          `**${pool.length} questions** · ${category ? CATEGORY_LABELS[category] : 'Mixed categories'} · ${seconds}s each\n` +
+          'Click a button to lock in your answer. Faster correct answers score more.\n' +
+          `Host: <@${interaction.user.id}>`,
+        footer: 'First question in a few seconds · /trivia stop to end early',
+      }),
+    );
     await sleep(4000, abort.signal);
 
     for (let i = 0; i < pool.length && !abort.signal.aborted; i++) {
@@ -91,27 +95,41 @@ export async function handleTrivia(interaction: ChatInputCommandInteraction, dep
       const correct = options.indexOf(q.answers[0]);
       const nonce = `${Date.now().toString(36)}${i}`;
       const deadline = Math.floor(Date.now() / 1000) + seconds;
+      const answers = new Map<string, { choice: number; at: number }>();
+      const header = `Question ${i + 1} of ${pool.length} · ${CATEGORY_LABELS[q.category]}`;
 
-      const questionEmbed = new EmbedBuilder()
-        .setColor(COLOR)
-        .setAuthor({ name: `Question ${i + 1} of ${pool.length} · ${CATEGORY_LABELS[q.category]}` })
-        .setTitle(q.question)
-        .setDescription(options.map((o, idx) => `**${LETTERS[idx]}.** ${o}`).join('\n') + `\n\nTime's up <t:${deadline}:R>`);
-
-      const buttons = (reveal: boolean) =>
-        new ActionRowBuilder<ButtonBuilder>().addComponents(
+      const buttons = (reveal: boolean, counts?: number[]) =>
+        ROW().addComponents(
           options.map((o, idx) =>
             new ButtonBuilder()
               .setCustomId(`trivia:${nonce}:${idx}`)
-              .setLabel(`${LETTERS[idx]}. ${o}`.slice(0, 80))
+              .setLabel(`${LETTERS[idx]}. ${o}${counts ? ` (${counts[idx]})` : ''}`.slice(0, 80))
               .setStyle(reveal ? (idx === correct ? ButtonStyle.Success : ButtonStyle.Secondary) : ButtonStyle.Primary)
               .setDisabled(reveal),
           ),
         );
+      const questionCard = () =>
+        card({
+          color: COLOR,
+          title: q.question,
+          body: `-# ${header}\n` + options.map((o, idx) => `**${LETTERS[idx]}.** ${o}`).join('\n') + `\n\n⏱️ Time's up <t:${deadline}:R> · 🔒 **${answers.size}** locked in`,
+          footer: progress(i),
+          rows: [buttons(false)],
+        });
 
-      const msg = await channel.send({ embeds: [questionEmbed], components: [buttons(false)] });
-      const answers = new Map<string, { choice: number; at: number }>();
+      const msg = await channel.send(questionCard());
       const askedAt = Date.now();
+
+      // Live "locked in" counter, throttled to stay inside edit rate limits.
+      let refresh: NodeJS.Timeout | null = null;
+      let revealed = false;
+      const scheduleRefresh = () => {
+        if (refresh || revealed) return;
+        refresh = setTimeout(() => {
+          refresh = null;
+          if (!revealed) msg.edit(questionCard()).catch(() => {});
+        }, 2500);
+      };
 
       const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: seconds * 1000 });
       const onAbort = () => collector.stop('aborted');
@@ -125,14 +143,19 @@ export async function handleTrivia(interaction: ChatInputCommandInteraction, dep
           return;
         }
         answers.set(btn.user.id, { choice, at: Date.now() });
-        await btn.reply({ content: `Locked in **${LETTERS[choice]}**.`, flags: MessageFlags.Ephemeral }).catch(() => {});
+        await btn.reply({ content: `🔒 Locked in **${LETTERS[choice]}. ${options[choice]}**`, flags: MessageFlags.Ephemeral }).catch(() => {});
+        scheduleRefresh();
       });
 
       await new Promise<void>((resolve) => collector.once('end', () => resolve()));
       abort.signal.removeEventListener('abort', onAbort);
+      revealed = true;
+      if (refresh) clearTimeout(refresh);
 
       const winners: { id: string; pts: number }[] = [];
+      const counts = [0, 0, 0, 0];
       for (const [userId, a] of answers) {
+        counts[a.choice]!++;
         if (a.choice !== correct) continue;
         const remaining = Math.max(0, seconds * 1000 - (a.at - askedAt)) / (seconds * 1000);
         const pts = 100 + Math.round(50 * remaining);
@@ -141,21 +164,24 @@ export async function handleTrivia(interaction: ChatInputCommandInteraction, dep
       }
       winners.sort((a, b) => b.pts - a.pts);
 
-      const result = new EmbedBuilder()
-        .setColor(winners.length ? 0x57f287 : 0xed4245)
-        .setAuthor({ name: `Question ${i + 1} of ${pool.length} · ${CATEGORY_LABELS[q.category]}` })
-        .setTitle(q.question)
-        .setDescription(
-          `✅ **${LETTERS[correct]}. ${options[correct]}**\n\n` +
-            (winners.length
-              ? `${winners.length} of ${answers.size} got it. Fastest: ${winners.slice(0, 3).map((w) => `<@${w.id}> (+${w.pts})`).join(', ')}`
-              : answers.size
-                ? `Nobody got it right (${answers.size} answered).`
-                : 'Nobody answered.'),
-        );
-      await msg.edit({ embeds: [result], components: [buttons(true)] }).catch(() => {});
+      const verdict = winners.length
+        ? `🎯 **${winners.length} of ${answers.size}** got it. Fastest: ${winners.slice(0, 3).map((w) => `<@${w.id}> +${w.pts}`).join(', ')}`
+        : answers.size
+          ? `😬 Nobody got it right (${answers.size} answered).`
+          : '🦗 Nobody answered.';
+      await msg
+        .edit(
+          card({
+            color: winners.length ? 0x57f287 : 0xed4245,
+            title: q.question,
+            body: `-# ${header}\n✅ **${LETTERS[correct]}. ${options[correct]}**\n${verdict}` + (scores.size ? `\n\n**Standings** ${standings(3)}` : ''),
+            footer: i < pool.length - 1 ? `${progress(i + 1)} · next question in a moment` : progress(pool.length),
+            rows: [buttons(true, counts)],
+          }),
+        )
+        .catch(() => {});
 
-      if (i < pool.length - 1) await sleep(4000, abort.signal);
+      if (i < pool.length - 1) await sleep(4500, abort.signal);
     }
 
     const ranking = [...scores.entries()].sort((a, b) => b[1] - a[1]);
@@ -166,22 +192,20 @@ export async function handleTrivia(interaction: ChatInputCommandInteraction, dep
       ranking.map(([userId, points]) => ({ userId, points, won: points === top && top > 0 })),
     );
 
-    const medals = ['🥇', '🥈', '🥉'];
-    await channel.send({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(0xfee75c)
-          .setTitle(abort.signal.aborted ? '🛑 Trivia stopped' : '🏁 Trivia results')
-          .setDescription(
-            ranking.length
-              ? ranking
-                  .slice(0, 10)
-                  .map(([id, pts], idx) => `${medals[idx] ?? `**${idx + 1}.**`} <@${id}> — ${pts} pts`)
-                  .join('\n')
-              : pick(['No points scored this time!', 'Nobody scored. Rematch?']),
-          ),
-      ],
-    });
+    const stopped = abort.signal.aborted;
+    await channel.send(
+      card({
+        color: 0xfee75c,
+        title: stopped ? '🛑 Trivia stopped' : '🏁 Trivia results',
+        body: ranking.length
+          ? ranking
+              .slice(0, 10)
+              .map(([id, pts], idx) => `${MEDALS[idx] ?? `**${idx + 1}.**`} <@${id}> · **${pts}** pts`)
+              .join('\n')
+          : pick(['No points scored this time!', 'Nobody scored. Rematch?']),
+        image: ranking.length && !stopped ? sceneImage(bannerScene('TRIVIA CHAMPION', `${top} points`, '#ffd23f'), 'champion', 'Trivia champion', true) : undefined,
+      }),
+    );
   } finally {
     deps.sessions.end(interaction.channelId);
   }
