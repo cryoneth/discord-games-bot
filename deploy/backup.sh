@@ -21,7 +21,7 @@ OUT="$DEST/games-$STAMP.db"
 
 mkdir -p "$DEST"
 
-docker compose exec -T bot node -e "
+docker compose exec -T bot node --no-warnings -e "
 const fs = require('node:fs');
 const { DatabaseSync } = require('node:sqlite');
 const snap = '$SNAPSHOT';
@@ -36,7 +36,7 @@ if (Object.values(ok)[0] !== 'ok') { fs.rmSync(snap, { force: true }); throw new
 "
 
 docker compose cp "bot:$SNAPSHOT" "$OUT"
-docker compose exec -T bot node -e "require('node:fs').rmSync('$SNAPSHOT', { force: true })"
+docker compose exec -T bot node --no-warnings -e "require('node:fs').rmSync('$SNAPSHOT', { force: true })"
 gzip -f "$OUT"
 
 find "$DEST" -maxdepth 1 -name 'games-*.db.gz' -mtime +"$KEEP_DAYS" -delete
