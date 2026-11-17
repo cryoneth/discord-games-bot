@@ -1,3 +1,4 @@
+import { log } from '../util/log.js';
 import { WORDS } from '../games/data/words.js';
 import {
   CANVAS_H,
@@ -288,8 +289,12 @@ export class Room {
       const ms = value * 60 * this.timing.secondMs;
       this.gameEndsAt = this.gameStarted + ms;
       this.gameTimer = setTimeout(() => {
-        if (this.phase === 'choosing' || this.phase === 'drawing') this.system("⏰ Time's up! This is the last turn.");
-        this.broadcastState();
+        try {
+          if (this.phase === 'choosing' || this.phase === 'drawing') this.system("⏰ Time's up! This is the last turn.");
+          this.broadcastState();
+        } catch (err) {
+          log.error('Sketch game timer failed', err);
+        }
       }, ms);
     } else {
       this.gameEndsAt = null;
@@ -542,7 +547,15 @@ export class Room {
   }
 
   private later(ms: number, fn: () => void): void {
-    this.timers.push(setTimeout(fn, ms));
+    this.timers.push(
+      setTimeout(() => {
+        try {
+          fn();
+        } catch (err) {
+          log.error('Sketch timer failed', err);
+        }
+      }, ms),
+    );
   }
 
   private clearTimers(): void {

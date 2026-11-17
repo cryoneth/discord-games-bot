@@ -1,5 +1,6 @@
 import { MAX_CHAT_LENGTH, type ChatKind, type ChatMessage } from '../shared/protocol.js';
 import { cleanText, type RoomResult } from './room.js';
+import { log } from '../util/log.js';
 
 export type { RoomResult } from './room.js';
 
@@ -249,7 +250,12 @@ export abstract class BaseRoom<S extends Seat = Seat> implements GameRoom {
   protected later(ms: number, fn: () => void): void {
     const t = setTimeout(() => {
       this.timers.delete(t);
-      fn();
+      // A bug in one room's timer must not crash the process (and every other game with it).
+      try {
+        fn();
+      } catch (err) {
+        log.error(`${this.constructor.name} timer failed`, err);
+      }
     }, ms);
     this.timers.add(t);
   }

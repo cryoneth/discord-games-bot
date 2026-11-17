@@ -49,7 +49,7 @@ See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md).
 4. **OAuth2:** copy the **Client Secret** into `DISCORD_CLIENT_SECRET`. Add the redirect `https://127.0.0.1` (Discord requires a placeholder for Activities).
 5. **Activities → Settings:** enable Activities.
 6. **Activities → URL Mappings:** map `/` to your domain, for example `games.example.com` (no `https://`).
-7. **Installation:** use the scopes `bot` and `applications.commands` with the bot permissions **Send Messages**, **Embed Links** and **Attach Files** (Attach Files is only used for `/privacy my-data`). Invite the bot with that link.
+7. **Installation:** use the scopes `bot` and `applications.commands` with the bot permissions **View Channels**, **Send Messages**, **Send Messages in Threads**, **Embed Links** and **Attach Files** (board images and animations are sent as attachments). Invite the bot with that link. If the bot is missing one of these in a channel, chat games reply with exactly which permission to grant instead of failing halfway.
 
 ## 2. Run locally
 

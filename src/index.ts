@@ -1,4 +1,4 @@
-import { Client, Events, GatewayIntentBits, MessageFlags, type ChatInputCommandInteraction } from 'discord.js';
+import { Client, Events, GatewayIntentBits, MessageFlags, PermissionFlagsBits, type ChatInputCommandInteraction } from 'discord.js';
 import { startWebServer } from './activity/server.js';
 import { handleLaunch, handleLeaderboard, handlePrivacy, handleServerData } from './commands/meta.js';
 import { loadConfig } from './config.js';
@@ -71,11 +71,37 @@ async function route(interaction: ChatInputCommandInteraction): Promise<void> {
   }
 }
 
+/** Chat games post and edit messages (with board images) in the channel, not only interaction replies. */
+const CHAT_GAMES = new Set([
+  'trivia', 'royale', 'wordguess', 'tictactoe', 'fourinarow', 'rps', 'dotsandboxes', 'matchsticks',
+  'fiveinarow', 'mancala', 'higherlower', 'hangman', 'numberduel', 'reaction', 'wouldyourather',
+]);
+
+/** Names of channel permissions the bot lacks for running a chat game here (empty if all good). */
+function missingChannelPermissions(interaction: ChatInputCommandInteraction): string[] {
+  if (!CHAT_GAMES.has(interaction.commandName) || interaction.options.getSubcommand(false) === 'stop') return [];
+  const perms = interaction.appPermissions;
+  const inThread = interaction.channel?.isThread() ?? false;
+  const needed: [bigint, string][] = [
+    [PermissionFlagsBits.ViewChannel, 'View Channel'],
+    inThread ? [PermissionFlagsBits.SendMessagesInThreads, 'Send Messages in Threads'] : [PermissionFlagsBits.SendMessages, 'Send Messages'],
+    [PermissionFlagsBits.AttachFiles, 'Attach Files'],
+  ];
+  return needed.filter(([flag]) => !perms.has(flag)).map(([, name]) => name);
+}
+
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isChatInputCommand()) return; // buttons are handled by per-game collectors
   const wait = commandCooldown.hit(interaction.user.id);
   if (wait > 0) {
     await interaction.reply({ content: 'Slow down a little!', flags: MessageFlags.Ephemeral }).catch(() => {});
+    return;
+  }
+  const missing = missingChannelPermissions(interaction);
+  if (missing.length) {
+    await interaction
+      .reply({ content: `I can't run games in this channel. Ask a server manager to give me: **${missing.join(', ')}**.`, flags: MessageFlags.Ephemeral })
+      .catch(() => {});
     return;
   }
   try {
@@ -87,6 +113,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
     else await interaction.reply(reply).catch(() => {});
   }
 });
+
+// Without an 'error' listener, a gateway error event would crash the process.
+client.on(Events.Error, (err) => log.error('Discord client error', err));
+client.on(Events.Warn, (msg) => log.warn(`Discord client warning: ${msg}`));
+client.on(Events.ShardDisconnect, (_e, id) => log.warn(`Shard ${id} disconnected`));
+client.on(Events.ShardResume, (id) => log.info(`Shard ${id} resumed`));
+client.on(Events.GuildCreate, () => log.info(`Joined a server (${client.guilds.cache.size} total)`));
+client.on(Events.GuildDelete, () => log.info(`Left a server (${client.guilds.cache.size} total)`));
 
 client.once(Events.ClientReady, (c) => log.info(`Logged in as ${c.user.tag} in ${c.guilds.cache.size} servers`));
 

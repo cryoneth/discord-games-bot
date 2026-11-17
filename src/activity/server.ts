@@ -113,9 +113,11 @@ export function startWebServer({ config, store, discord }: Deps) {
 
   /** Exchange the OAuth code from the Activity for an access token. The client secret never leaves the server. */
   const handleToken = async (req: IncomingMessage, res: ServerResponse) => {
+    // Activity traffic arrives through Discord's proxy, so many players can share one IP:
+    // keep this loose enough for a busy server. OAuth codes are single-use anyway.
     const ip = clientIp(req);
     let bucket = tokenBuckets.get(ip);
-    if (!bucket) tokenBuckets.set(ip, (bucket = new TokenBucket(10, 0.2)));
+    if (!bucket) tokenBuckets.set(ip, (bucket = new TokenBucket(60, 2)));
     if (!bucket.take()) return json(res, 429, { error: 'rate_limited' });
 
     let code: unknown;
