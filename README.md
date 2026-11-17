@@ -86,6 +86,17 @@ Discord's **Use Application Commands** permission covers every app at once. To o
 6. **Test with an ordinary member account, not an admin.** Admins see every command. In `#games`, type `/` and check that only this bot's commands appear. Then try a command in another channel and check it's blocked.
 7. **Repeat step 2 whenever you add a new bot.** New apps are allowed everywhere commands are allowed until you switch them off.
 
+**What the Channels setting in Integrations means.** Each app's page has an **All Channels** switch, and you can add individual channels below it as exceptions.
+
+| All Channels | `#games` added as | The app's commands work… |
+|---|---|---|
+| ✅ On | (not added) | everywhere |
+| ✅ On | ❌ | everywhere **except** `#games` |
+| ❌ Off | ✅ | **only** in `#games` |
+| ❌ Off | (not added) | nowhere |
+
+This only controls the app's slash commands. It doesn't stop the bot posting messages, and game buttons keep working. It also can't grant more than the channel allows: members still need **Use Application Commands** in that channel. Administrators can use every command everywhere, which is why step 6 says to test with a normal account.
+
 Discord documents these settings only in outline. If an app still shows up in `#games` after step 2, remove that app's access with a `#games` channel override in its Integrations page, and re-test as a member.
 
 ### What can't be fully prevented
