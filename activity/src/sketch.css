@@ -163,10 +163,15 @@ button.side.short.active { background: color-mix(in srgb, var(--down) 30%, #fff)
   border: 2.5px solid var(--ink);
   border-radius: var(--wob-lg);
   box-shadow: 4px 4px 0 var(--ink);
+  /*
+   * No tilt: Discord's GPU renderer left stale strips (stray lines, blocks of ink)
+   * on rotated tiles with these uneven corners after a hover. Each tile also gets
+   * its own layer so a repaint never bleeds into its neighbours.
+   */
+  transform: none;
+  backface-visibility: hidden;
 }
-.game-tile:nth-child(odd) { transform: rotate(-.6deg); }
-.game-tile:nth-child(even) { transform: rotate(.5deg); }
-.game-tile:not(:disabled):hover { transform: rotate(0) translate(-1px, -3px); background: #fffbea; border-color: var(--ink); box-shadow: 6px 7px 0 var(--ink); }
+.game-tile:not(:disabled):hover { transform: translate(-1px, -3px); background: #fffbea; border-color: var(--ink); box-shadow: 6px 7px 0 var(--ink); }
 .game-tile:disabled { box-shadow: 4px 4px 0 var(--ink); }
 .tile-players { background: var(--panel-2); border: 1.5px dashed rgb(43 45 66 / .45); }
 
@@ -230,7 +235,6 @@ button.side.short.active { background: color-mix(in srgb, var(--down) 30%, #fff)
 
 @media (max-width: 800px) {
   .table-stage .card { border: 0; box-shadow: none; }
-  .game-tile:nth-child(n) { transform: none; }
   .card h1 { font-size: 24px; }
   .picker-head h1 { font-size: 26px; }
 }
