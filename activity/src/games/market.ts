@@ -13,6 +13,7 @@ import {
   type Vault,
 } from '../../../src/shared/market';
 import { MAX_CHAT_LENGTH } from '../../../src/shared/protocol';
+import { icon, rich } from '../icons';
 import { avatar, button, card, Chat, chips, el, money, podium, settingRow, startFooter, topLeft, type Ctx, type View } from '../core';
 
 const pct = (n: number, d = 1) => `${n >= 0 ? '+' : '−'}${Math.abs(n * 100).toFixed(d)}%`;
@@ -81,7 +82,7 @@ export function createMarket(ctx: Ctx): View {
 
   function settingsPanel(s: MarketSettings, isHost: boolean) {
     const summary = `${s.minutes} min · ${SCENARIO_LABELS[s.scenario]} · up to ${s.maxLeverage}x`;
-    if (!isHost) return el('div', { className: 'settings summary' }, el('span', { className: 'label', textContent: 'Market' }), el('span', { textContent: summary }));
+    if (!isHost) return el('div', { className: 'settings summary' }, el('span', { className: 'label', textContent: 'Market' }), el('span', {}, ...rich(summary)));
     const update = (patch: Partial<MarketSettings>) => ctx.send({ t: 'settings', settings: { ...s, ...patch } });
     return el(
       'div',
@@ -101,7 +102,7 @@ export function createMarket(ctx: Ctx): View {
       const ranking = s.results.map((r) => ({ id: r.id, name: r.name, score: Math.round(r.equity) }));
       const mine = s.results.find((r) => r.id === ctx.me());
       parts.push(
-        el('div', { className: 'eyebrow', textContent: `Market closed · it was a ${s.scenario ? SCENARIO_LABELS[s.scenario] : 'mystery'}` }),
+        el('div', { className: 'eyebrow' }, ...rich(`Market closed · it was a ${s.scenario ? SCENARIO_LABELS[s.scenario] : 'mystery'}`)),
         el('h1', { textContent: ranking[0] && ranking[0].score > MARKET.startCash ? `${ranking[0].name} wins!` : 'Nobody beat the market' }),
         podium(ranking, ctx.me(), '$'),
       );
@@ -124,13 +125,13 @@ export function createMarket(ctx: Ctx): View {
                 ['Max leverage', mine.stats.maxLeverage ? `${mine.stats.maxLeverage}x` : '–'],
               ].map(([k, v]) => el('div', {}, el('span', { className: 'k', textContent: k }), el('span', { className: 'v', textContent: v }))),
             ),
-            el('ul', { className: 'lessons' }, ...lessons(mine).map((l) => el('li', { textContent: l }))),
+            el('ul', { className: 'lessons' }, ...lessons(mine).map((l) => el('li', {}, ...rich(l)))),
           ),
         );
       }
     } else {
       parts.push(
-        el('div', { className: 'logo', textContent: '📈' }),
+        el('div', { className: 'logo' }, icon('chart')),
         el('h1', { textContent: 'Perp Arena' }),
         el('p', { className: 'sub', textContent: `Trade ${MARKET.asset}, a made-up token, with ${money(MARKET.startCash)} of play money. Highest balance when the market closes wins.` }),
         el(
@@ -194,9 +195,9 @@ export function createMarket(ctx: Ctx): View {
     const qty = (margin * leverage) / price;
     const liq = liquidationPrice({ side, entry: price, qty, margin, funding: 0 });
     const hasPos = Boolean(t?.account.position);
-    previewEl.textContent = hasPos
+    previewEl.replaceChildren(...rich(hasPos
       ? 'Close your position to open a new one.'
-      : `Margin ${money(margin)} · Size ${money(margin * leverage)} · Liquidation ≈ ${px(liq)} (${pct((liq - price) / price)})${stop && 100 / leverage <= stop ? ' ⚠️ your stop is past liquidation' : ''}`;
+      : `Margin ${money(margin)} · Size ${money(margin * leverage)} · Liquidation ≈ ${px(liq)} (${pct((liq - price) / price)})${stop && 100 / leverage <= stop ? ' ⚠️ your stop is past liquidation' : ''}`));
     if (openBtn) openBtn.disabled = hasPos || margin < MARKET.minMargin;
   }
 
@@ -211,7 +212,7 @@ export function createMarket(ctx: Ctx): View {
     return el(
       'div',
       { className: `vault ${v}${disabled ? ' dead' : ''}` },
-      el('div', { className: 'vault-head' }, el('span', { className: 'vault-name', textContent: label }), el('span', { className: 'apr', textContent: apr })),
+      el('div', { className: 'vault-head' }, el('span', { className: 'vault-name' }, ...rich(label)), el('span', { className: 'apr', textContent: apr })),
       el('div', { className: 'vault-note', textContent: note }),
       el('div', { className: 'vault-row' }, el('span', { className: 'vault-amt', textContent: money(amount, 2) }), dep(25), dep(100), w),
     );
@@ -283,7 +284,7 @@ export function createMarket(ctx: Ctx): View {
   }
 
   function renderNews() {
-    newsEl.replaceChildren(...news.slice(-4).reverse().map((n) => el('li', { className: n.tone }, el('span', { className: 'when', textContent: simClock(n.i) }), n.text)));
+    newsEl.replaceChildren(...news.slice(-4).reverse().map((n) => el('li', { className: n.tone }, el('span', { className: 'when', textContent: simClock(n.i) }), ...rich(n.text))));
   }
 
   function renderTop() {
@@ -304,7 +305,7 @@ export function createMarket(ctx: Ctx): View {
       el('span', { className: 'funding', textContent: ` · funding ${(t.fundingRate * 100).toFixed(3)}%/8h` }),
     );
     const left = state.endsAt ? Math.max(0, Math.ceil((state.endsAt - ctx.now()) / 1000)) : 0;
-    timerEl.textContent = `🔔 ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+    timerEl.replaceChildren(icon('clock', 'inline'), ` ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`);
     timerEl.classList.toggle('low', left <= 20);
   }
 
@@ -346,12 +347,12 @@ export function createMarket(ctx: Ctx): View {
     c2d.textBaseline = 'middle';
     for (let k = 0; k <= 4; k++) {
       const v = lo + ((hi - lo) * k) / 4;
-      c2d.strokeStyle = 'rgba(255,255,255,0.06)';
+      c2d.strokeStyle = 'rgba(43,45,66,0.1)';
       c2d.beginPath();
       c2d.moveTo(0, y(v));
       c2d.lineTo(w - right, y(v));
       c2d.stroke();
-      c2d.fillStyle = '#80848e';
+      c2d.fillStyle = '#6b7088';
       c2d.fillText(px(v), w - right + 6, y(v));
     }
 
@@ -365,7 +366,7 @@ export function createMarket(ctx: Ctx): View {
     c2d.moveTo(x(0), y(prices[0]!));
     for (let i = 1; i < prices.length; i++) c2d.lineTo(x(i), y(prices[i]!));
     c2d.strokeStyle = line;
-    c2d.lineWidth = 2;
+    c2d.lineWidth = 2.5;
     c2d.stroke();
     c2d.lineTo(x(prices.length - 1), h);
     c2d.lineTo(x(0), h);
@@ -397,7 +398,7 @@ export function createMarket(ctx: Ctx): View {
       c2d.fillText(label, 6, y(v) - 8);
     };
     if (pos) {
-      level(pos.entry, '#c9cdff', `entry ${px(pos.entry)}`, [4, 4]);
+      level(pos.entry, '#4f74f0', `entry ${px(pos.entry)}`, [4, 4]);
       level(pos.liq, '#ed4245', `liquidation ${px(pos.liq)}`, [2, 3]);
       level(pos.stop, '#faa61a', 'stop', [6, 3]);
       level(pos.take, '#3ba55d', 'target', [6, 3]);

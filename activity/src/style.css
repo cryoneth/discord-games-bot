@@ -42,7 +42,7 @@ html, body {
 .plist { list-style: none; margin: 0; padding: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
 .plist li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; background: var(--panel-2); border: 1px solid transparent; transition: background .2s, border-color .2s; }
 .plist li.guessed { background: color-mix(in srgb, var(--good) 22%, var(--panel-2)); border-color: color-mix(in srgb, var(--good) 55%, transparent); }
-.plist li.drawing { border-color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, var(--panel-2)); }
+.plist li.drawing { border-color: var(--warn-text); background: color-mix(in srgb, var(--warn) 12%, var(--panel-2)); }
 .plist li.offline { opacity: 0.45; }
 .plist li.me .name { font-weight: 700; }
 .plist .rank { width: 12px; flex: none; color: var(--muted); font-size: 12px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
@@ -51,8 +51,8 @@ html, body {
 .plist .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plist .crown { font-size: 11px; margin-left: 4px; }
 .plist .status { font-size: 11px; color: var(--muted); }
-.plist li.guessed .status { color: #8ee3a8; }
-.plist li.drawing .status { color: var(--warn); }
+.plist li.guessed .status { color: var(--good-text); }
+.plist li.drawing .status { color: var(--warn-text); }
 .plist .score { font-weight: 700; font-variant-numeric: tabular-nums; }
 
 .avatar {
@@ -89,7 +89,7 @@ canvas.can-draw { cursor: crosshair; }
 
 .card {
   margin: auto; width: 100%; max-width: 480px; display: flex; flex-direction: column; align-items: center; gap: 14px;
-  background: var(--panel); border: 1px solid rgb(255 255 255 / 0.06); border-radius: 18px; padding: 24px 22px 22px;
+  background: var(--panel); border: 1px solid rgb(43 45 66 / 0.06); border-radius: 18px; padding: 24px 22px 22px;
   text-align: center; box-shadow: 0 20px 50px rgb(0 0 0 / 0.45); animation: pop .22s ease-out;
 }
 @keyframes pop { from { transform: scale(.96) translateY(6px); opacity: 0; } }
@@ -100,7 +100,7 @@ canvas.can-draw { cursor: crosshair; }
 .card .logo { font-size: 44px; line-height: 1; margin-bottom: -4px; }
 .card .eyebrow { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: -8px; }
 .card .choices { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
-.reveal-word { font-size: 34px; font-weight: 800; letter-spacing: .5px; color: #fff; text-transform: capitalize; }
+.reveal-word { font-size: 34px; font-weight: 800; letter-spacing: .5px; color: var(--text); text-transform: capitalize; }
 
 .waiting { display: flex; align-items: center; gap: 10px; color: var(--muted); font-weight: 600; padding: 10px 0 2px; }
 .dots { display: inline-flex; gap: 4px; }
@@ -115,7 +115,7 @@ canvas.can-draw { cursor: crosshair; }
 .step { position: relative; flex: 0 1 120px; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .step-name { max-width: 100%; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
 .step-score { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
-.step.me .step-name { color: #c9cdff; }
+.step.me .step-name { color: var(--accent-text); }
 .block {
   width: 100%; margin-top: 6px; border-radius: 10px 10px 4px 4px; display: grid; place-items: center;
   font-size: 22px; font-weight: 800; color: rgb(0 0 0 / 0.45);
@@ -136,8 +136,8 @@ canvas.can-draw { cursor: crosshair; }
 .gains { list-style: none; margin: 0; padding: 0; width: 100%; max-width: 300px; display: flex; flex-direction: column; gap: 6px; }
 .gains li { display: flex; align-items: center; gap: 10px; background: var(--panel-2); border-radius: 10px; padding: 6px 10px; text-align: left; }
 .gains .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.gains li.me .name { color: #c9cdff; }
-.gains .plus { color: #8ee3a8; font-weight: 800; font-variant-numeric: tabular-nums; }
+.gains li.me .name { color: var(--accent-text); }
+.gains .plus { color: var(--good-text); font-weight: 800; font-variant-numeric: tabular-nums; }
 
 /* Settings */
 .settings { display: flex; flex-direction: column; align-items: stretch; gap: 10px; background: var(--bg); border-radius: 14px; padding: 14px; width: 100%; }
@@ -148,7 +148,7 @@ canvas.can-draw { cursor: crosshair; }
 .settings.summary .label { width: auto; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; }
 .chips { flex: 1; display: flex; gap: 2px; padding: 3px; background: var(--panel-2); border-radius: 10px; }
 .chip { flex: 1; padding: 6px 8px; border-radius: 8px; font-size: 13px; background: transparent; color: var(--muted); white-space: nowrap; }
-.chip:hover { color: var(--text); filter: none; background: rgb(255 255 255 / 0.05); }
+.chip:hover { color: var(--text); filter: none; background: rgb(43 45 66 / 0.05); }
 .chip.active { background: var(--accent); color: #fff; box-shadow: 0 2px 6px rgb(0 0 0 / 0.25); }
 .settings .estimate { color: var(--muted); font-size: 13px; margin-top: 2px; }
 
@@ -162,7 +162,7 @@ button.primary { background: var(--accent); font-size: 17px; padding: 12px 28px;
 button.primary:active { transform: translateY(3px); box-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 60%, #000); }
 button.word { background: var(--panel-2); border: 2px solid var(--accent); font-size: 18px; padding: 12px 22px; text-transform: capitalize; }
 button.word:hover { background: var(--accent); filter: none; }
-button.link { background: none; padding: 0; color: #a5adff; font-size: 14px; }
+button.link { background: none; padding: 0; color: var(--accent-text); font-size: 14px; }
 button.link:hover { text-decoration: underline; filter: none; }
 button.danger { background: color-mix(in srgb, var(--bad) 60%, var(--panel-2)); }
 
@@ -179,10 +179,10 @@ button.danger { background: color-mix(in srgb, var(--bad) 60%, var(--panel-2)); 
 .chatlog li { padding: 3px 6px; border-radius: 6px; word-wrap: break-word; }
 .chatlog li .who { font-weight: 700; margin-right: 4px; }
 .chatlog li.system { color: var(--muted); font-size: 13px; }
-.chatlog li.correct { color: #fff; background: color-mix(in srgb, var(--good) 35%, transparent); border-left: 3px solid var(--good); font-weight: 600; }
+.chatlog li.correct { color: var(--text); background: color-mix(in srgb, var(--good) 35%, transparent); border-left: 3px solid var(--good); font-weight: 600; }
 .chatlog li.correct::before { content: '✓ '; }
-.chatlog li.close { color: var(--warn); }
-.chatlog li.private { color: #b9bbff; }
+.chatlog li.close { color: var(--warn-text); }
+.chatlog li.private { color: var(--accent-text); }
 .chat-form { margin-top: 8px; }
 .field {
   width: 100%; font: inherit; color: var(--text); background: var(--panel-2); border: 2px solid transparent;

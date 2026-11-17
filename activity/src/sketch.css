@@ -1,0 +1,260 @@
+/*
+ * Sketchbook theme: matches the hand-drawn chat-game images. Cream dotted paper,
+ * ink outlines with slightly uneven corners, offset "marker" shadows, a yellow
+ * highlighter for whatever is selected, and handwritten headings and buttons.
+ * Loaded after style.css and games.css, so it only has to override.
+ */
+
+@font-face {
+  font-family: 'Kalam';
+  src: url('./fonts/kalam-700.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  --bg: #fdf8ec;
+  --panel: #ffffff;
+  --panel-2: #f5f0e2;
+  --text: #2b2d42;
+  --muted: #676c84;
+  --ink: #2b2d42;
+  --accent: #4f74f0;
+  --accent-text: #3557d4;
+  --good: #3bb273;
+  --good-text: #1d8a4a;
+  --warn: #f59f1a;
+  --warn-text: #a86400;
+  --bad: #e8445a;
+  --bad-text: #cf2b43;
+  --hl: #ffcf3f;
+  --hl-soft: #fff1bf;
+  --up: #3bb273;
+  --down: #e8445a;
+  --team0: #ff8a3d;
+  --team1: #4f74f0;
+  --radius: 14px;
+  --hand: 'Kalam', 'Segoe Print', 'Comic Sans MS', cursive;
+  /* Uneven corners read as drawn by hand. */
+  --wob: 255px 15px 225px 15px / 15px 225px 15px 255px;
+  --wob-lg: 22px 9px 20px 11px / 11px 20px 9px 22px;
+  --wob-sm: 12px 5px 10px 6px / 6px 10px 5px 12px;
+  --shadow: 3px 3px 0 var(--ink);
+  --shadow-sm: 2px 2px 0 var(--ink);
+  color-scheme: light;
+}
+
+html, body {
+  background-color: var(--bg);
+  background-image: radial-gradient(circle, #e2dccb 1.3px, transparent 1.7px);
+  background-size: 24px 24px;
+  color: var(--text);
+}
+
+/* ── Handwriting for titles, labels and buttons ─────────────────────────── */
+
+button, .pill, .card h1, .picker-head h1, .tile-name, .phase-title, .reveal-word, .word-badge .word,
+.word-pair .word, .taboo-word, .big-score, .q-text, .guess-prompt, .my-result, .step-name, .block,
+.panel h2, .settings-title, .team-head, .clue, .eyebrow, .word-badge .label, .q-head .eyebrow,
+.app.odd .hint, .app.forbidden .hint, .app.quiz .hint, .editor-head h2, .trade h3, .pos-head,
+.vault-head, .debrief-head, .account .equity .v, .clue-name, .tile-players, .log-chip, .vote-chip {
+  font-family: var(--hand);
+  font-weight: 700;
+}
+.card h1 { font-size: 30px; }
+.picker-head h1 { font-size: 34px; }
+.tile-name { font-size: 21px; }
+.panel h2, .settings-title, .eyebrow, .q-head .eyebrow, .trade h3 { letter-spacing: .5px; font-size: 14px; text-transform: none; color: var(--muted); }
+
+/* ── Paper cards ─────────────────────────────────────────────────────────── */
+
+.panel, .card, .toolbar, .table-stage, .editor, .taboo {
+  background: var(--panel);
+  border: 2.5px solid var(--ink);
+  border-radius: var(--wob-lg);
+  box-shadow: var(--shadow);
+}
+.card { animation: pop .22s ease-out; }
+.table-stage .card, .overlay .card { box-shadow: 4px 4px 0 var(--ink); }
+
+/* Inner boxes: a lighter pencil outline, no shadow. */
+.settings, .position, .vault, .debrief, .clue-feed, .team-col, .ed-question, .io[open], .word-pair > div {
+  background: var(--panel-2);
+  border: 2px solid rgb(43 45 66 / .25);
+  border-radius: var(--wob-lg);
+}
+.team-col { border-top: 5px solid var(--team0); }
+.team-col.team-1 { border-top-color: var(--team1); }
+.team-col.mine { outline: 0; border-color: var(--ink); }
+.vault.farm { border: 2px dashed var(--warn); }
+.vault.dead { border-color: var(--down); }
+
+.plist li, .rest li, .gains li, .mini-board li, .board-list li, .lessons li, .news li, .clue-row, .quiz-row, .clue {
+  border-radius: var(--wob-sm);
+}
+.plist li { background: var(--panel-2); }
+.plist li.drawing { background: var(--hl-soft); border-color: var(--warn); }
+.mini-board li.me, .board-list li.me { outline: 2px solid var(--ink); }
+.clue-row.turn { border-color: var(--warn); background: var(--hl-soft); }
+.clue { background: var(--panel); border: 1.5px solid rgb(43 45 66 / .3); }
+
+.avatar { border: 2px solid var(--ink); box-shadow: none; }
+.place-1 .avatar { box-shadow: 0 0 0 4px var(--hl); }
+
+/* ── Top bar ─────────────────────────────────────────────────────────────── */
+
+.pill { background: var(--panel); border: 2px solid var(--ink); border-radius: var(--wob); box-shadow: var(--shadow-sm); font-size: 16px; }
+.timer.low { background: var(--bad); color: #fff; }
+.hint { color: var(--ink); }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+
+button {
+  color: var(--ink);
+  background: var(--panel);
+  border: 2px solid var(--ink);
+  border-radius: var(--wob);
+  box-shadow: var(--shadow-sm);
+  transition: transform .08s, box-shadow .08s, background .12s;
+}
+button:hover { filter: none; background: var(--hl-soft); }
+button:not(:disabled):active { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--ink); }
+button:disabled { opacity: .45; }
+
+button.primary {
+  background: var(--hl);
+  color: var(--ink);
+  font-size: 20px;
+  border: 2.5px solid var(--ink);
+  border-radius: var(--wob);
+  box-shadow: var(--shadow);
+}
+button.primary:hover { background: #ffd95f; }
+button.primary:active { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--ink); }
+button.primary.long { background: var(--up); box-shadow: var(--shadow); }
+button.primary.short { background: var(--down); color: #fff; box-shadow: var(--shadow); }
+button.good, button.go { background: var(--good); }
+button.danger { background: #ffd9de; color: var(--bad-text); }
+button.word { border: 2.5px solid var(--ink); background: var(--panel); }
+button.word:hover { background: var(--hl); }
+button.link, button.icon { border: 0; box-shadow: none; background: none; }
+button.link { color: var(--accent-text); }
+button.link:hover { background: none; text-decoration: underline wavy; }
+button.icon:hover { background: var(--hl-soft); }
+button.buzz { background: var(--bad); color: #fff; border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); }
+button.buzz:active { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--ink); }
+button.vote { background: var(--panel); }
+button.vote.active { background: var(--bad); color: #fff; }
+button.end-game { background: var(--panel); color: var(--muted); border: 2px solid var(--ink); }
+button.end-game[data-armed] { background: var(--bad); color: #fff; }
+button.side { background: var(--panel); border: 2px solid var(--ink); }
+button.side.long.active { background: color-mix(in srgb, var(--up) 30%, #fff); border-color: var(--ink); }
+button.side.short.active { background: color-mix(in srgb, var(--down) 30%, #fff); border-color: var(--ink); }
+
+/* Segmented choices: the picked one gets the highlighter. */
+.chips { background: var(--panel-2); border: 2px solid var(--ink); border-radius: var(--wob-lg); padding: 3px; }
+.chip { border: 0; box-shadow: none; border-radius: var(--wob); color: var(--muted); }
+.chip:hover { background: rgb(43 45 66 / .06); color: var(--ink); }
+.chip.active { background: var(--hl); color: var(--ink); box-shadow: none; }
+
+/* Game picker tiles look like cards pinned to the page. */
+.game-tile {
+  background: var(--panel);
+  border: 2.5px solid var(--ink);
+  border-radius: var(--wob-lg);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+.game-tile:nth-child(odd) { transform: rotate(-.6deg); }
+.game-tile:nth-child(even) { transform: rotate(.5deg); }
+.game-tile:not(:disabled):hover { transform: rotate(0) translate(-1px, -3px); background: #fffbea; border-color: var(--ink); box-shadow: 6px 7px 0 var(--ink); }
+.game-tile:disabled { box-shadow: 4px 4px 0 var(--ink); }
+.tile-players { background: var(--panel-2); border: 1.5px dashed rgb(43 45 66 / .45); }
+
+/* Quiz answers: bold marker colours with ink outlines. */
+.answer {
+  --c: #ec4561;
+  border: 2.5px solid var(--ink);
+  border-radius: var(--wob-lg);
+  box-shadow: var(--shadow);
+}
+.answer.a1 { --c: #4f74f0; }
+.answer.a2 { --c: #e8a200; }
+.answer.a3 { --c: #2f9e57; }
+.answer:not(:disabled):active { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--ink); }
+.answer.mine { outline: 4px solid var(--hl); outline-offset: 2px; }
+.ed-answer .shape { background: #ec4561; border: 2px solid var(--ink); }
+.ed-answer.a1 .shape { background: #4f74f0; }
+.ed-answer.a2 .shape { background: #e8a200; }
+.ed-answer.a3 .shape { background: #2f9e57; }
+.mark { border-radius: 50%; box-shadow: none; border-color: var(--ink); }
+
+.swatch { border-radius: 50%; border: 2px solid var(--ink); box-shadow: none; }
+.swatch.active { border-color: var(--ink); box-shadow: 0 0 0 3px var(--hl); }
+.width { box-shadow: none; }
+.width.active { background: var(--hl); }
+
+/* ── Inputs ──────────────────────────────────────────────────────────────── */
+
+.field { background: var(--panel); color: var(--ink); border: 2px solid var(--ink); border-radius: var(--wob-sm); }
+.field:focus { border-color: var(--ink); box-shadow: 0 0 0 3px var(--hl); }
+.field::placeholder { color: #9aa0b4; }
+
+/* ── Drawing board, overlays, podium ─────────────────────────────────────── */
+
+/* The ink frame sits on the board wrapper, so overlays inside it never cover or blur it. */
+.board { border: 2.5px solid var(--ink); border-radius: var(--wob-lg); box-shadow: var(--shadow); background: #fff; overflow: hidden; }
+.board canvas { border-radius: 0; }
+
+.overlay { background: rgb(253 248 236 / .88); -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 0; }
+.overlay.peek { background: linear-gradient(transparent 45%, rgb(253 248 236 / .9)); }
+
+.block { border: 2.5px solid var(--ink); border-bottom: 0; border-radius: var(--wob-sm); color: rgb(43 45 66 / .7); }
+.place-1 .block { background: var(--hl); }
+.place-2 .block { background: #d9dce6; }
+.place-3 .block { background: #f2b27c; }
+
+.word-badge { background: var(--panel); border: 2.5px dashed var(--accent); border-radius: var(--wob-lg); }
+.taboo { background: #fffdf6; }
+.taboo-word { background: #8a4fe0; border-bottom: 2.5px solid var(--ink); }
+.intro-bar { background: var(--panel-2); border: 2px solid var(--ink); height: 12px; }
+.intro-bar span { background: var(--hl); }
+.dots i { background: var(--ink); }
+
+.chatlog li.correct { background: color-mix(in srgb, var(--good) 22%, transparent); border-left: 3px solid var(--good); }
+.news li { background: var(--panel-2); }
+.tag.long { color: var(--good-text); }
+.tag.short { color: var(--bad-text); }
+
+.editor-backdrop { background: rgb(43 45 66 / .45); }
+.editor-head, .editor-foot { border-color: rgb(43 45 66 / .15); }
+
+@media (max-width: 800px) {
+  .table-stage .card { border: 0; box-shadow: none; }
+  .game-tile:nth-child(n) { transform: none; }
+  .card h1 { font-size: 24px; }
+  .picker-head h1 { font-size: 26px; }
+}
+
+/* Small print stays in the regular font: handwriting is hard to read this small. */
+.tile-blurb, .quiz-meta, .preview, .vault-note, .settings .estimate { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-weight: 500; }
+.hint { font-family: var(--hand); font-weight: 700; font-size: 30px; letter-spacing: 4px; }
+.quiz-row.selected { background: var(--hl-soft); border-color: var(--ink); }
+/* Panels nested inside panels don't get a second frame. */
+.panel .panel, .leaderboard .chat { border: 0; box-shadow: none; border-radius: 0; background: none; }
+
+/* ── Hand-drawn icons (icons.ts) ───────────────────────────────────────── */
+
+.ico { width: 1.25em; height: 1.25em; vertical-align: -0.28em; flex: none; overflow: visible; }
+.ico-ink { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ico-dot { fill: currentColor; }
+.card .logo { line-height: 0; margin-bottom: 0; }
+.card .logo .ico { width: 58px; height: 58px; color: var(--ink); }
+.tile-emoji { line-height: 0; color: var(--ink); }
+.tile-emoji .ico { width: 46px; height: 46px; }
+.plist .crown .ico { width: 15px; height: 15px; vertical-align: -0.25em; }
+.winner-crown { line-height: 0; color: var(--ink); }
+.winner-crown .ico { width: 34px; height: 34px; }
+.news li.good .ico-up { color: var(--good-text); }
+.news li.bad .ico-down { color: var(--bad-text); }
+.my-result .ico, .phase-title .ico, .guess-prompt .ico { width: 1.15em; height: 1.15em; }
+.timer.low .ico-fill { fill: #fff; opacity: .35; }

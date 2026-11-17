@@ -1,3 +1,4 @@
+import { icon, rich } from '../icons';
 import { MAX_CHAT_LENGTH } from '../../../src/shared/protocol';
 import {
   DECK_LABELS,
@@ -35,7 +36,7 @@ export function createOddOneOut(ctx: Ctx): View {
 
   function settingsPanel(s: OddSettings, isHost: boolean) {
     const summary = `${s.rounds} rounds · ${s.clueRounds} clue${s.clueRounds === 1 ? '' : 's'} each · ${s.clueSeconds}s per clue · ${DECK_LABELS[s.deck]}`;
-    if (!isHost) return el('div', { className: 'settings summary' }, el('span', { className: 'label', textContent: 'Game' }), el('span', { textContent: summary }));
+    if (!isHost) return el('div', { className: 'settings summary' }, el('span', { className: 'label', textContent: 'Game' }), el('span', {}, ...rich(summary)));
     const update = (patch: Partial<OddSettings>) => ctx.send({ t: 'settings', settings: { ...s, ...patch } });
     return el(
       'div',
@@ -57,7 +58,7 @@ export function createOddOneOut(ctx: Ctx): View {
       s.phase === 'finished'
         ? [el('div', { className: 'eyebrow', textContent: 'Game over' }), el('h1', { textContent: ranking[0] && ranking[0].score > 0 ? `${ranking[0].name} wins!` : 'Game over' }), podium(ranking, ctx.me())]
         : [
-            el('div', { className: 'logo', textContent: '🕵️' }),
+            el('div', { className: 'logo' }, icon('magnifier')),
             el('h1', { textContent: 'Odd One Out' }),
             el(
               'ol',
@@ -132,7 +133,7 @@ export function createOddOneOut(ctx: Ctx): View {
     } else if (s.phase === 'vote') {
       const voters = s.players.filter((p) => p.inRound && p.connected);
       children.push(
-        el('div', { className: 'phase-title', textContent: `🗳️ Who has a different word? · ${voters.filter((p) => p.voted).length}/${voters.length} voted` }),
+        el('div', { className: 'phase-title' }, ...rich(`🗳️ Who has a different word? · ${voters.filter((p) => p.voted).length}/${voters.length} voted`)),
         clueBoard(s, true),
         el('p', { className: 'sub', textContent: 'Talk it over in voice or chat. You can change your vote until time runs out.' }),
       );
@@ -169,7 +170,7 @@ export function createOddOneOut(ctx: Ctx): View {
         el('div', {}, el('span', { className: 'label', textContent: 'Everyone' }), el('span', { className: 'word', textContent: r.majorityWord })),
         el('div', { className: 'odd' }, el('span', { className: 'label', textContent: odd?.name ?? 'Odd one' }), el('span', { className: 'word', textContent: r.oddWord })),
       ),
-      r.guess ? el('p', { className: 'sub', textContent: r.stole ? `They guessed "${r.guess}" and stole the points! 😈` : `They guessed "${r.guess}". Nope!` }) : null,
+      r.guess ? el('p', { className: 'sub', textContent: r.stole ? `They guessed "${r.guess}" and stole the points!` : `They guessed "${r.guess}". Nope!` }) : null,
       votes.length
         ? el('div', { className: 'votes' }, ...votes.map(([voter, target]) => el('span', { className: `vote-chip${target === r.oddId ? ' right' : ''}`, textContent: `${nameOf(voter)} → ${nameOf(target)}` })))
         : el('p', { className: 'sub', textContent: 'Nobody voted.' }),

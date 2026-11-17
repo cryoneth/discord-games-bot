@@ -1,3 +1,4 @@
+import { icon, rich } from '../icons';
 import { MAX_CHAT_LENGTH } from '../../../src/shared/protocol';
 import {
   QUESTION_SECONDS,
@@ -82,7 +83,7 @@ export function createQuiz(ctx: Ctx): View {
     const head =
       s.phase === 'finished'
         ? [el('div', { className: 'eyebrow', textContent: 'Final scores' }), el('h1', { textContent: ranking[0] && ranking[0].score > 0 ? `${ranking[0].name} wins!` : 'Quiz over' }), podium(ranking, ctx.me())]
-        : [el('div', { className: 'logo', textContent: '⚡' }), el('h1', { textContent: 'Quiz Arena' }), el('p', { className: 'sub', textContent: 'Answer fast for more points. Streaks earn a bonus.' })];
+        : [el('div', { className: 'logo' }, icon('bolt')), el('h1', { textContent: 'Quiz Arena' }), el('p', { className: 'sub', textContent: 'Answer fast for more points. Streaks earn a bonus.' })];
     stageCard(
       ui.stage,
       ...head,
@@ -143,7 +144,7 @@ export function createQuiz(ctx: Ctx): View {
         el(
           'div',
           { className: `my-result ${gain ? 'right' : 'wrong'}` },
-          gain ? `✓ +${gain}${me && me.streak > 1 ? `  🔥 ${me.streak} in a row` : ''}` : s.myAnswer === null ? '⌛ No answer' : '✗ Not this time',
+          ...rich(gain ? `✓ +${gain}${me && me.streak > 1 ? `  🔥 ${me.streak} in a row` : ''}` : s.myAnswer === null ? '⌛ No answer' : '✗ Not this time'),
         ),
         miniBoard(s),
         me?.host ? button(s.index + 1 >= s.total ? 'Final results ▸' : 'Next ▸', () => ctx.send({ t: 'next' }), 'small next') : null,
@@ -208,7 +209,7 @@ export function createQuiz(ctx: Ctx): View {
       const answers = q.answers.map((a, ai) => {
         const input = el('input', { className: 'field', maxLength: QUIZ_LIMITS.answerLength, placeholder: `Answer ${ai + 1}`, value: a });
         input.oninput = () => (q.answers[ai] = input.value);
-        const mark = el('button', { type: 'button', className: `mark${q.correct === ai ? ' on' : ''}`, title: 'Correct answer', textContent: q.correct === ai ? '✓' : '' });
+        const mark = el('button', { type: 'button', className: `mark${q.correct === ai ? ' on' : ''}`, title: 'Correct answer' }, q.correct === ai ? icon('check') : '');
         mark.onclick = () => ((q.correct = ai), renderEditor());
         const remove =
           q.answers.length > QUIZ_LIMITS.minAnswers

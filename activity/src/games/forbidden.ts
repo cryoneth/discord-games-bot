@@ -1,3 +1,4 @@
+import { icon, rich } from '../icons';
 import {
   DECK_LABELS,
   FORBIDDEN_OPTIONS,
@@ -36,7 +37,7 @@ export function createForbidden(ctx: Ctx): View {
 
   function settingsPanel(s: ForbiddenSettings, isHost: boolean) {
     const summary = `${s.rounds} rounds · ${s.turnSeconds}s turns · ${DECK_LABELS[s.deck]}`;
-    if (!isHost) return el('div', { className: 'settings summary' }, el('span', { className: 'label', textContent: 'Game' }), el('span', { textContent: summary }));
+    if (!isHost) return el('div', { className: 'settings summary' }, el('span', { className: 'label', textContent: 'Game' }), el('span', {}, ...rich(summary)));
     const update = (patch: Partial<ForbiddenSettings>) => ctx.send({ t: 'settings', settings: { ...s, ...patch } });
     return el(
       'div',
@@ -81,14 +82,14 @@ export function createForbidden(ctx: Ctx): View {
             el('div', { className: 'big-score', textContent: `${a} – ${b}` }),
           ]
         : [
-            el('div', { className: 'logo', textContent: '🚫' }),
+            el('div', { className: 'logo' }, icon('ban')),
             el('h1', { textContent: 'Forbidden Words' }),
             el(
               'ol',
               { className: 'howto' },
               el('li', { textContent: 'Your describer gets a word and five words they can’t say. Describe it in voice, or type clues.' }),
               el('li', { textContent: 'Teammates guess out loud (describer taps “Got it”) or type guesses in chat.' }),
-              el('li', { textContent: 'The other team sees the card. Hit 🚨 Buzz if a banned word slips out: −1.' }),
+              el('li', {}, ...rich('The other team sees the card. Hit 🚨 Buzz if a banned word slips out: −1.')),
             ),
           ];
     stageCard(
@@ -116,7 +117,7 @@ export function createForbidden(ctx: Ctx): View {
 
   function turnLog(s: ForbiddenStateMessage) {
     if (!s.log.length) return null;
-    return el('div', { className: 'turn-log' }, ...s.log.map((l) => el('span', { className: `log-chip ${l.result}`, textContent: `${RESULT_LABEL[l.result]} ${l.word}` })));
+    return el('div', { className: 'turn-log' }, ...s.log.map((l) => el('span', { className: `log-chip ${l.result}` }, ...rich(`${RESULT_LABEL[l.result]} ${l.word}`))));
   }
 
   function clueFeed() {
@@ -165,7 +166,7 @@ export function createForbidden(ctx: Ctx): View {
     if (describing) {
       parts.push(el('div', { className: 'actions' }, button('✓ Got it', () => ctx.send({ t: 'got' }), 'good'), button('⏭ Skip', () => ctx.send({ t: 'skip' }))), clueForm);
     } else if (myTeamUp) {
-      parts.push(el('div', { className: 'guess-prompt', textContent: '🗣️ Guess! Say it out loud or type it in chat.' }), clueFeed());
+      parts.push(el('div', { className: 'guess-prompt' }, ...rich('🗣️ Guess! Say it out loud or type it in chat.')), clueFeed());
     } else {
       parts.push(button('🚨 Buzz', () => ctx.send({ t: 'buzz' }), 'buzz'), clueFeed());
     }
@@ -180,7 +181,7 @@ export function createForbidden(ctx: Ctx): View {
     const active = s.phase !== 'lobby' && s.phase !== 'finished';
     ctx.setPlaying(active);
     ui.status.textContent = s.phase === 'lobby' ? 'Lobby' : s.phase === 'finished' ? 'Game over' : `Round ${s.round}/${s.settings.rounds}`;
-    ui.center.textContent = s.phase === 'lobby' ? '' : `${TEAM_EMOJI[0]} ${s.teamScores[0]}  –  ${s.teamScores[1]} ${TEAM_EMOJI[1]}`;
+    ui.center.replaceChildren(...rich(s.phase === 'lobby' ? '' : `${TEAM_EMOJI[0]} ${s.teamScores[0]}  –  ${s.teamScores[1]} ${TEAM_EMOJI[1]}`));
     ui.playersTitle.textContent = 'Teams';
     renderPlayers(
       ui.players,

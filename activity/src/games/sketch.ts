@@ -1,3 +1,4 @@
+import { icon } from '../icons';
 import {
   CANVAS_H,
   CANVAS_W,
@@ -201,7 +202,7 @@ export function createSketch(ctx: Ctx): View {
         head.push(el('div', { className: 'eyebrow', textContent: 'Game over' }), el('h1', { textContent: tie ? 'It’s a tie!' : `${ranking[0]?.name ?? ''} wins!` }), podium(ranking, me()));
       } else {
         head.push(
-          el('div', { className: 'logo', textContent: '🎨' }),
+          el('div', { className: 'logo' }, icon('palette')),
           el('h1', { textContent: 'Sketch Party' }),
           el('p', { className: 'sub', textContent: 'Take turns drawing a secret word while everyone else races to guess it.' }),
         );
@@ -321,7 +322,7 @@ export function createSketch(ctx: Ctx): View {
       'ul',
       { className: 'gains' },
       ...gains.map(({ p, d }) =>
-        el('li', { className: p.id === me() ? 'me' : '' }, avatar(p.name), el('span', { className: 'name', textContent: p.name + (p.id === s.drawerId ? ' ✏️' : '') }), el('span', { className: 'plus', textContent: `+${d}` })),
+        el('li', { className: p.id === me() ? 'me' : '' }, avatar(p.name), el('span', { className: 'name', textContent: p.name }, p.id === s.drawerId ? icon('pencil', 'inline') : null), el('span', { className: 'plus', textContent: `+${d}` })),
       ),
     );
   }
@@ -332,10 +333,10 @@ export function createSketch(ctx: Ctx): View {
     if (s.phase === 'lobby') roundEl.textContent = 'Lobby';
     else if (s.phase === 'finished') roundEl.textContent = 'Game over';
     else if (s.settings.mode === 'rounds') roundEl.textContent = `Round ${s.round}/${s.totalRounds}`;
-    else if (s.settings.mode === 'points') roundEl.textContent = `🎯 First to ${s.settings.value} · turn ${s.turn}`;
+    else if (s.settings.mode === 'points') roundEl.replaceChildren(icon('target', 'inline'), ` First to ${s.settings.value} · turn ${s.turn}`);
     else if (s.gameEndsAt) {
       const left = Math.max(0, Math.ceil((s.gameEndsAt - ctx.now()) / 1000));
-      roundEl.textContent = left > 0 ? `⏳ ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')} left` : '⏳ Last turn!';
+      roundEl.replaceChildren(icon('hourglass', 'inline'), left > 0 ? ` ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')} left` : ' Last turn!');
     }
   }
 
@@ -343,7 +344,7 @@ export function createSketch(ctx: Ctx): View {
     if (state?.settings.mode === 'time') renderProgress();
     if (state?.endsAt) {
       const left = Math.max(0, Math.ceil((state.endsAt - ctx.now()) / 1000));
-      timerEl.textContent = `⏱ ${left}s`;
+      timerEl.replaceChildren(icon('clock', 'inline'), ` ${left}s`);
       timerEl.classList.toggle('low', left <= 10 && state.phase === 'drawing');
     } else {
       timerEl.textContent = '';
@@ -365,7 +366,7 @@ export function createSketch(ctx: Ctx): View {
       colorsEl = el('div', { className: 'colors' });
       widthsEl = el('div', { className: 'widths' });
       const undo = el('button', { type: 'button', className: 'tool', title: 'Undo', textContent: '↶ Undo' });
-      const clear = el('button', { type: 'button', className: 'tool danger', title: 'Clear', textContent: '🗑 Clear' });
+      const clear = el('button', { type: 'button', className: 'tool danger', title: 'Clear' }, icon('trash', 'inline'), ' Clear');
       undo.onclick = () => send({ t: 'undo' });
       clear.onclick = () => send({ t: 'clear' });
       toolbar = el('div', { className: 'toolbar hidden' }, colorsEl, widthsEl, undo, clear);

@@ -1,12 +1,14 @@
 import { DiscordSDK } from '@discord/embedded-app-sdk';
 import { GAMES, type ClientMessage, type GameId, type HubPlayer, type ServerMessage } from '../../src/shared/protocol';
 import { button, card, el, renderPlayers, waiting, type Ctx, type View } from './core';
+import { icon, type IconName } from './icons';
 import { createForbidden } from './games/forbidden';
 import { createMarket } from './games/market';
 import { createOddOneOut } from './games/oddoneout';
 import { createQuiz } from './games/quiz';
 import { createSketch } from './games/sketch';
 import './games.css';
+import './sketch.css';
 
 const FACTORIES: Record<GameId, (ctx: Ctx) => View> = {
   drawing: createSketch,
@@ -33,7 +35,7 @@ let playing = false;
 
 /** Host-only control that floats over every game while one is running. */
 const endLabel = el('span', { className: 'lbl', textContent: ' End game' });
-const endButton = el('button', { type: 'button', className: 'end-game', title: 'End game' }, '⏹', endLabel);
+const endButton = el('button', { type: 'button', className: 'end-game', title: 'End game' }, icon('square'), endLabel);
 endButton.onclick = () => {
   if (endButton.dataset.armed) send({ t: 'g', m: { t: 'end' } });
   else {
@@ -77,6 +79,8 @@ function notice(...children: Node[]) {
   app.replaceChildren(el('div', { className: 'app' }, el('div', { className: 'stage-center' }, card(...children))));
 }
 
+const GAME_ICONS: Record<GameId, IconName> = { drawing: 'palette', oddoneout: 'magnifier', forbidden: 'ban', quiz: 'bolt', market: 'chart' };
+
 // ── Game picker ────────────────────────────────────────────────────────────
 
 function renderPicker() {
@@ -93,7 +97,7 @@ function renderPicker() {
       const b = el(
         'button',
         { type: 'button', className: 'game-tile', disabled: !amHost },
-        el('span', { className: 'tile-emoji', textContent: g.emoji }),
+        el('span', { className: 'tile-emoji' }, icon(GAME_ICONS[g.id])),
         el('span', { className: 'tile-name', textContent: g.name }),
         el('span', { className: 'tile-blurb', textContent: g.blurb }),
         el('span', { className: `tile-players${tooFew ? ' short' : ''}`, textContent: g.minPlayers === 1 ? `1–${g.maxPlayers} players` : `${g.minPlayers}–${g.maxPlayers} players` }),
@@ -109,7 +113,7 @@ function renderPicker() {
       el(
         'header',
         { className: 'picker-head' },
-        el('h1', { textContent: '🎉 Game Night' }),
+        el('h1', {}, icon('party'), ' Game Night'),
         el('p', { className: 'sub', textContent: amHost ? 'You’re the host. Pick a game for everyone.' : '' }, !amHost ? waiting(`${host?.name ?? 'The host'} is picking a game…`) : ''),
       ),
       el('main', { className: 'picker-body' }, grid, el('aside', { className: 'panel players' }, el('h2', { textContent: `Here now · ${online}` }), list)),
@@ -153,7 +157,7 @@ function onMessage(msg: ServerMessage) {
       break;
     case 'error':
       if (msg.fatal) fatal = true;
-      notice(el('h1', { textContent: '⚠️' }), el('p', { textContent: msg.text }));
+      notice(el('div', { className: 'logo' }, icon('warning')), el('p', { textContent: msg.text }));
       break;
   }
 }
@@ -216,7 +220,7 @@ async function boot() {
     accessToken = ((await res.json()) as { access_token: string }).access_token;
     connect();
   } catch {
-    notice(el('h1', { textContent: '⚠️' }), el('p', { textContent: 'Could not sign in with Discord. Close the activity and try again.' }));
+    notice(el('div', { className: 'logo' }, icon('warning')), el('p', { textContent: 'Could not sign in with Discord. Close the activity and try again.' }));
   }
 }
 

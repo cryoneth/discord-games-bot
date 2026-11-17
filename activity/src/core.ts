@@ -24,6 +24,8 @@ export interface View {
   onMessage(m: { t: string } & Record<string, any>): void;
 }
 
+import { icon, rich } from './icons';
+
 // ── DOM helpers ────────────────────────────────────────────────────────────
 
 export const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -35,7 +37,7 @@ export function el<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial
 }
 
 export function button(text: string, onClick: () => void, className = ''): HTMLButtonElement {
-  const b = el('button', { type: 'button', className, textContent: text });
+  const b = el('button', { type: 'button', className }, ...rich(text));
   b.onclick = onClick;
   return b;
 }
@@ -63,7 +65,7 @@ export function chips<T extends number | string>(options: readonly T[], current:
     'div',
     { className: 'chips' },
     ...options.map((v) => {
-      const b = el('button', { type: 'button', className: `chip${v === current ? ' active' : ''}`, textContent: label(v) });
+      const b = el('button', { type: 'button', className: `chip${v === current ? ' active' : ''}` }, ...rich(label(v)));
       b.disabled = !enabled && v !== current;
       if (enabled) b.onclick = () => pick(v);
       return b;
@@ -96,7 +98,7 @@ export function podium(ranking: Ranked[], me: string, unit = 'pts') {
         return el(
           'div',
           { className: `step place-${i + 1}${p.id === me ? ' me' : ''}` },
-          i === 0 && el('span', { className: 'winner-crown', textContent: '👑' }),
+          i === 0 && el('span', { className: 'winner-crown' }, icon('crown')),
           avatar(p.name, i === 0 ? 'xl' : 'lg'),
           el('div', { className: 'step-name', textContent: p.name, title: p.name }),
           el('div', { className: 'step-score', textContent: fmt(p.score) }),
@@ -148,8 +150,8 @@ export function renderPlayers(list: HTMLElement, rows: PlayerRow[], me: string, 
         el(
           'span',
           { className: 'who' },
-          el('span', { className: 'name', textContent: p.name, title: p.name }, p.host && el('span', { className: 'crown', textContent: '👑', title: 'Host' })),
-          status && el('span', { className: 'status', textContent: status }),
+          el('span', { className: 'name', textContent: p.name, title: p.name }, p.host && el('span', { className: 'crown', title: 'Host' }, icon('crown'))),
+          status && el('span', { className: 'status' }, ...rich(status)),
         ),
         p.score !== undefined && el('span', { className: 'score', textContent: p.score }),
       );
@@ -182,7 +184,8 @@ export class Chat {
   add(kind: string, text: string, name?: string) {
     const li = el('li', { className: kind });
     if (name) li.append(el('span', { className: 'who', textContent: name + ':' }));
-    li.append(text);
+    // Server lines may carry emoji; players' own words are shown as typed.
+    li.append(...(name ? [text] : rich(text)));
     this.log.append(li);
     while (this.log.children.length > 150) this.log.firstChild?.remove();
     this.log.scrollTop = this.log.scrollHeight;
@@ -236,7 +239,7 @@ export function setTimer(t: HTMLElement, seconds: number | null, lowAt = 5) {
     t.classList.remove('low');
     return;
   }
-  t.textContent = `⏱ ${seconds}s`;
+  t.replaceChildren(icon('clock', 'inline'), ` ${seconds}s`);
   t.classList.toggle('low', seconds <= lowAt);
 }
 
