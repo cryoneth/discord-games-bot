@@ -157,6 +157,27 @@ If the server already runs a reverse proxy on ports 80/443, start only the bot w
 **Update:** `git pull && docker compose up -d --build`
 **Logs:** `docker compose logs -f bot`
 
+## Backups
+
+All data (scores, daily boards, custom quizzes) is one SQLite file, `games.db`, in the `bot-data` Docker volume. Updating with `docker compose up -d --build` keeps it. **`docker compose down -v` deletes it.**
+
+**Nightly backup without downtime.** `deploy/backup.sh` snapshots the database while the bot runs, checks the copy, and saves it as `~/backups/games-<date>.db.gz`, keeping 14 days (`KEEP_DAYS`, `BACKUP_DIR` to change). Install it on the server with `crontab -e`:
+
+```
+30 3 * * * PATH=/usr/local/bin:/usr/bin:/bin sh /root/discord-games-bot/deploy/backup.sh >> /root/backups/backup.log 2>&1
+```
+
+**Restore** a backup (this replaces the current data):
+
+```bash
+cd ~/discord-games-bot && docker compose stop bot
+gunzip -c ~/backups/games-2026-11-18-0330.db.gz > /tmp/games.db
+docker run --rm -v discord-games-bot_bot-data:/data -v /tmp:/b alpine sh -c 'rm -f /data/games.db* && cp /b/games.db /data/games.db && chown 1000:1000 /data/games.db'
+docker compose start bot
+```
+
+Backups sit on the same machine, so also copy them somewhere else now and then (for example `scp` to your computer).
+
 ## Development
 
 ```
