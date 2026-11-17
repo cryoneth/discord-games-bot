@@ -29,6 +29,8 @@ export interface MassTiming {
 
 const DEFAULT_TIMING: MassTiming = { readyMs: 3000, waitMinMs: 1500, waitMaxMs: 5000, windowMs: 2500, resultMs: 4500 };
 const MAX_ROUNDS = 50;
+/** Most network round-trip a player's own timing may subtract from what the server saw. */
+export const MAX_LAG_CREDIT_MS = 300;
 const POINTS = { survive: 10, fastest: 5, win: 100 } as const;
 
 export interface Tap {
@@ -153,9 +155,10 @@ export class MassReactionRoom extends BaseRoom<MassSeat> {
     }
     if (this.phase !== 'go') return;
     const elapsed = Date.now() - this.goAt;
-    // Measured on the player's screen so network lag doesn't count, but it can't exceed the server's clock.
+    // Measured on the player's screen so network lag doesn't count. It can't exceed the server's clock,
+    // and it can claim at most MAX_LAG_CREDIT_MS of lag, so a tampered client can't fake a huge lead.
     const reported = typeof msg.ms === 'number' && Number.isFinite(msg.ms) && msg.ms >= 0 ? Math.round(msg.ms) : elapsed;
-    const ms = Math.min(reported, elapsed);
+    const ms = Math.max(Math.min(reported, elapsed), elapsed - MAX_LAG_CREDIT_MS);
     const early = msg.early === true || ms < MIN_REACTION_MS;
     this.taps.set(seat.id, { ms: early ? null : ms, early });
     this.maybeResolve();

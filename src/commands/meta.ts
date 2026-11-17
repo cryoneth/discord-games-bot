@@ -9,8 +9,10 @@ import {
   MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
+  type AutocompleteInteraction,
 } from 'discord.js';
-import type { GameId, ScoreStore } from '../store.js';
+import { JUST_FOR_FUN } from '../shared/protocol.js';
+import { MIN_SCORED_PLAYERS, periodRange, type GameId, type Period, type ScoreStore } from '../store.js';
 import { card } from '../ui/card.js';
 import { log } from '../util/log.js';
 
@@ -39,6 +41,8 @@ const GAME_CHOICES: { name: string; value: GameId }[] = [
   { name: 'Mass Reaction', value: 'massreaction' },
 ];
 
+const PERIOD_LABELS: Record<Period, string> = { day: 'Today', week: 'This week', month: 'This month', all: 'All time' };
+
 export const playCommand = new SlashCommandBuilder()
   .setName('play')
   .setDescription('Open the party games Activity: drawing, Odd One Out, Forbidden Words, quizzes, trading sim')
@@ -54,6 +58,12 @@ export const leaderboardCommand = new SlashCommandBuilder()
   .setName('leaderboard')
   .setDescription("Show this server's top players")
   .setContexts(InteractionContextType.Guild)
+  .addStringOption((o) =>
+    o
+      .setName('period')
+      .setDescription('Which board (default: all time)')
+      .addChoices(...(Object.entries(PERIOD_LABELS) as [Period, string][]).map(([value, name]) => ({ name, value }))),
+  )
   .addStringOption((o) => o.setName('game').setDescription('Filter by game (default: all games)').addChoices(...GAME_CHOICES));
 
 export const privacyCommand = new SlashCommandBuilder()
@@ -70,7 +80,19 @@ export const serverDataCommand = new SlashCommandBuilder()
   .setDescription("Manage this server's game data (server managers only)")
   .setContexts(InteractionContextType.Guild)
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-  .addSubcommand((s) => s.setName('wipe').setDescription('Permanently delete all scores recorded for this server'));
+  .addSubcommand((s) => s.setName('wipe').setDescription('Permanently delete all scores and custom quizzes recorded for this server'))
+  .addSubcommand((s) => s.setName('quizzes').setDescription('List the custom quizzes members wrote on this server, with their authors'))
+  .addSubcommand((s) =>
+    s
+      .setName('delete-quiz')
+      .setDescription("Delete any member's custom quiz (e.g. if it breaks the server rules)")
+      .addStringOption((o) => o.setName('quiz').setDescription('Start typing the quiz title').setRequired(true).setAutocomplete(true)),
+  );
+
+export const helpCommand = new SlashCommandBuilder()
+  .setName('help')
+  .setDescription('Every game, how to start it, and the house rules')
+  .setContexts(InteractionContextType.Guild);
 
 export async function handleLaunch(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
@@ -87,25 +109,65 @@ export async function handleLaunch(interaction: ChatInputCommandInteraction): Pr
 export async function handleLeaderboard(interaction: ChatInputCommandInteraction, store: ScoreStore): Promise<void> {
   if (!interaction.guildId) return;
   const game = interaction.options.getString('game') as GameId | null;
-  const rows = store.leaderboard(interaction.guildId, game, 10);
+  const period = (interaction.options.getString('period') as Period | null) ?? 'all';
+  const rows = store.leaderboard(interaction.guildId, game, 10, period);
   const label = GAME_CHOICES.find((g) => g.value === game)?.name ?? 'All games';
   const medals = ['🥇', '🥈', '🥉'];
+  const me = interaction.user.id;
+  const mine = rows.some((r) => r.user_id === me) ? null : store.rankOf(interaction.guildId, me, game, period);
+  const resets = period === 'all' ? '' : ` · resets <t:${Math.floor(periodRange(period).resetsAt / 1000)}:R>`;
+  const empty =
+    period === 'all'
+      ? 'No scores yet. Try `/help` to pick a game!'
+      : `Nobody has scored ${PERIOD_LABELS[period].toLowerCase()} yet. The top spot is wide open! Try \`/help\` to pick a game.`;
   await interaction.reply(
     card({
       color: 0xfee75c,
-      title: `🏆 Leaderboard · ${label}`,
-      body: rows.length
-        ? rows.map((r, i) => `${medals[i] ?? `\`${String(i + 1).padStart(2)}\``} <@${r.user_id}> · **${r.points}** pts · ${r.wins} 🏅 · ${r.games_played} played`).join('\n')
-        : 'No scores yet. Try `/play`, `/trivia start`, `/wordguess start` or `/tictactoe`!',
-      footer: 'Scores expire after a period of inactivity · /privacy for your data',
+      title: `🏆 ${PERIOD_LABELS[period]} · ${label}`,
+      body:
+        (rows.length
+          ? rows
+              .map((r, i) => `${medals[i] ?? `\`${String(i + 1).padStart(2)}\``} <@${r.user_id}> · ${r.wins} 🏅 · ${r.games_played} played${r.user_id === me ? ' ← you' : ''}`)
+              .join('\n')
+          : empty) +
+        (mine ? `\n\nYou're **#${mine.rank}**. Keep going!` : ''),
+      footer: `🎈 Just for fun${resets} · games count with ${MIN_SCORED_PLAYERS}+ players`,
     }),
   );
+}
+
+/** The `/help` text: every game, how to start it, and the house rules. Exported for tests (length limit). */
+export function helpText(): string {
+  return [
+    '**Chat games** (anyone can start these in a channel)',
+    '`/trivia start` · `/royale start` · `/laststanding start` · `/minority start` · `/wordguess start` · `/wouldyourather`',
+    '**Duels** (challenge someone)',
+    '`/tictactoe` · `/fourinarow` · `/fiveinarow` · `/dotsandboxes` · `/matchsticks` · `/mancala` · `/higherlower` · `/hangman` · `/numberduel` · `/reaction` · `/rps`',
+    '**Voice channel games** (`/play`, or the 🚀 Activities button in a voice call)',
+    'Sketch Party · Odd One Out · Forbidden Words · Quiz Arena · Perp Arena · Mass Reaction (up to 100 players)',
+    '',
+    '**House rules**',
+    '• Anyone can join a game. Only the person who started it (or a server manager) can stop it.',
+    `• Games count for the leaderboard with ${MIN_SCORED_PLAYERS} or more players. Solo games are just practice.`,
+    '• The same two players score at most 5 duels of a game per day, and quiz authors don\'t score on their own quizzes.',
+    '• Anyone can write quizzes in Quiz Arena. Only server managers can delete quizzes or server data.',
+    '• Be kind in clues, quiz questions and chat.',
+    '',
+    '**Leaderboards** `/leaderboard`, with daily, weekly, monthly and all-time boards (days in UTC, weeks start Monday).',
+    '**Your data** `/privacy` to see, delete or stop recording your scores.',
+    '',
+    `🎈 ${JUST_FOR_FUN}`,
+  ].join('\n');
+}
+
+export async function handleHelp(interaction: ChatInputCommandInteraction): Promise<void> {
+  await interaction.reply({ ...card({ color: 0x5865f2, title: '🎮 Games & rules', body: helpText() }), flags: MessageFlags.IsComponentsV2 | MessageFlags.Ephemeral });
 }
 
 export function privacyText(retentionDays: number): string {
   return [
     '**What this bot stores**',
-    '• Your Discord user ID with your score totals, wins and games played, separately for each server.',
+    '• Your Discord user ID with your score totals, wins and games played, separately for each server (and per day, for the daily, weekly and monthly boards).',
     '• Quizzes you write in Quiz Arena, with your user ID as the author, so only you can edit or delete them.',
     `• Nothing else. Scores not updated, and quizzes not edited or played, for **${retentionDays} days** are deleted automatically.`,
     '',
@@ -116,6 +178,8 @@ export function privacyText(retentionDays: number): string {
     '',
     '**Your controls**',
     '`/privacy my-data` see your records · `/privacy forget-me` delete them · `/privacy opt-out` stop tracking',
+    '',
+    `🎈 ${JUST_FOR_FUN}`,
     'Server managers can delete all of a server\'s data with `/server-data wipe`.',
   ].join('\n');
 }
@@ -128,11 +192,12 @@ export async function handlePrivacy(interaction: ChatInputCommandInteraction, st
       await interaction.reply({ embeds: [new EmbedBuilder().setColor(0x5865f2).setTitle('🔒 Privacy').setDescription(privacyText(retentionDays))], ...ephemeral });
       return;
     case 'my-data': {
-      const { rows, quizzes, optedOut } = store.userData(userId);
+      const { rows, days, quizzes, optedOut } = store.userData(userId);
       const body = {
         user_id: userId,
         opted_out: optedOut,
         scores: rows.map((r) => ({ server_id: r.guild_id, game: r.game, points: r.points, wins: r.wins, games_played: r.games_played, last_updated: new Date(r.updated_at).toISOString() })),
+        daily_scores: days.map((r) => ({ server_id: r.guild_id, game: r.game, day: r.day, points: r.points, wins: r.wins, games_played: r.games_played })),
         quizzes: quizzes.map((q) => ({
           server: q.scope,
           title: q.title,
@@ -172,6 +237,27 @@ export async function handleServerData(interaction: ChatInputCommandInteraction,
     await interaction.reply({ content: 'You need the Manage Server permission for this.', flags: MessageFlags.Ephemeral });
     return;
   }
+  const sub = interaction.options.getSubcommand();
+  if (sub === 'quizzes') {
+    const list = store.listServerQuizzes(interaction.guildId);
+    const lines = list.slice(0, 40).map((q) => `• **${escapeMd(q.title)}** by <@${q.owner_id}> · edited <t:${Math.floor(q.updated_at / 1000)}:R>`);
+    await interaction.reply({
+      content: list.length
+        ? `**Custom quizzes on this server (${list.length})**\n${lines.join('\n')}${list.length > 40 ? `\n…and ${list.length - 40} more` : ''}\n\nRemove one with \`/server-data delete-quiz\`.`
+        : 'Nobody has written a custom quiz on this server yet.',
+      flags: MessageFlags.Ephemeral,
+      allowedMentions: { parse: [] },
+    });
+    return;
+  }
+  if (sub === 'delete-quiz') {
+    const title = store.removeServerQuiz(interaction.guildId, interaction.options.getString('quiz', true));
+    await interaction.reply({
+      content: title ? `Deleted the quiz **${escapeMd(title)}**. Rooms already playing it finish the current game.` : "I couldn't find that quiz. Pick one from the list as you type.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId('wipe:confirm').setLabel('Delete all server data').setStyle(ButtonStyle.Danger),
     new ButtonBuilder().setCustomId('wipe:cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary),
@@ -195,4 +281,24 @@ export async function handleServerData(interaction: ChatInputCommandInteraction,
   } catch {
     await interaction.editReply({ content: 'Timed out. Nothing was deleted.', components: [] }).catch(() => {});
   }
+}
+
+/** Suggests quizzes for `/server-data delete-quiz` (server managers only). */
+export async function handleAutocomplete(interaction: AutocompleteInteraction, store: ScoreStore): Promise<void> {
+  if (interaction.commandName !== 'server-data' || !interaction.guildId || !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+    await interaction.respond([]).catch(() => {});
+    return;
+  }
+  const typed = interaction.options.getFocused().toLowerCase();
+  const matches = store
+    .listServerQuizzes(interaction.guildId)
+    .filter((q) => q.title.toLowerCase().includes(typed))
+    .slice(0, 25)
+    .map((q) => ({ name: q.title.slice(0, 100) || '(untitled)', value: q.id }));
+  await interaction.respond(matches).catch(() => {});
+}
+
+/** Stops user-written titles from breaking Discord formatting. */
+function escapeMd(text: string): string {
+  return text.replace(/[\\*_~`|>#\[\]()<@]/g, (c) => `\\${c}`);
 }

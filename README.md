@@ -30,12 +30,74 @@ Privacy-focused party games that run entirely inside Discord, built to be safe f
 
 **Activity games** run in one Discord Activity: `/play` (or `/draw`) opens it in a voice channel, the host picks a game, and everyone in the call plays. The host can end a game early and switch to another between games.
 
-Also: `/leaderboard`, `/privacy`, `/server-data wipe`.
+Also: `/help` (every game and the house rules), `/leaderboard`, `/privacy`, and `/server-data` for server managers.
+
+> 🎈 **All games and leaderboards are just for fun.** The bot says this on `/help`, `/leaderboard`, `/privacy`, the Activity's game picker and every Activity results post.
+
+## Leaderboards
+
+`/leaderboard period:<Today | This week | This month | All time> game:<optional>` shows the top 10 positions, plus your own position if you're further down. Boards show places, wins and games played, never point totals; points are only used behind the scenes to order the board. Days are UTC and weeks start on Monday. Each board shows when it resets.
+
+These rules keep the boards fair:
+
+- **2+ players to count.** Solo games (a solo quiz, solo Perp Arena, solving a word puzzle alone) are practice and score nothing. Players listed twice are counted once.
+- **No win-trading in duels.** The same two players score at most 5 games of the same duel per day. After that they can keep playing, but nothing is recorded.
+- **Quiz authors don't count on their own quizzes.** They know the answers, so they play along without a leaderboard entry.
+- **Trivia counts everyone who answered**, not just people who scored.
+- **Mass Reaction can't be faked by much.** Reaction time is measured on the player's screen so lag doesn't count, but it can never be slower than the server saw, and it can claim at most 300 ms of lag. A tap faster than 100 ms counts as a false start.
+
+## Running it on a public server
+
+### Who can do what
+
+| Action | Who |
+|---|---|
+| Start and play any game, `/help`, `/leaderboard`, `/privacy` | Everyone |
+| Stop a running chat game | The person who started it, or anyone with **Manage Server** |
+| End an Activity game early, switch games | The Activity host (the first person who joined) |
+| `/server-data quizzes`: see every custom quiz and its author | **Manage Server** only (hidden from everyone else) |
+| Write and edit your own quizzes in Quiz Arena | Everyone |
+| `/server-data delete-quiz`: delete a custom quiz (members can't delete quizzes, not even their own) | **Manage Server** only |
+| `/server-data wipe`: delete all of the server's scores and quizzes | **Manage Server** only, with a confirm button |
+| Delete or stop recording **your own** scores (`/privacy forget-me`, `/privacy opt-out`) | Each member, for themselves only. Kept because privacy laws such as GDPR give people the right to erase their own data |
+
+Nobody can delete or change another member's scores, and members can't wipe the server's data. The bot never pings anyone, can't read messages, and every game is limited to one per channel (one duel per person) with a 2-second cooldown between commands.
+
+### Option A: members never type a command
+
+If your server blocks slash commands for members, they can still play most games:
+
+- **Buttons don't need command permission.** A moderator starts `/trivia start`, `/royale start`, `/laststanding start`, `/minority start`, `/wordguess start` or `/wouldyourather`, and everyone joins and plays with buttons.
+- **Activity games don't need commands either.** Members open them from the 🚀 **Activities** button in a voice channel. They only need the **Use Activities** permission there.
+- **Duels and `/leaderboard` need commands**, so they're mod-only in this setup.
+
+### Option B: allow this bot's commands, and only this bot's
+
+Discord's **Use Application Commands** permission covers every app at once. To open up only this bot, enable that permission in one channel, then switch every other app off there:
+
+1. **Create a channel** such as `#games`. In its permissions, for `@everyone`:
+   - Allow **Use Application Commands**.
+   - Deny **Use External Apps**, so commands from apps members installed on their own accounts don't post publicly.
+   - Keep it denied everywhere else, as you have now.
+2. **Switch off every other app in that channel.** Go to **Server Settings → Integrations**. For **every other bot or app**, open it, then under **Channels** add `#games` and switch it **off** (✗).
+3. **Optionally, keep this bot to that channel.** In **Server Settings → Integrations → this bot**, under **Channels**, turn off "All channels" and allow only `#games`.
+4. **Leave `/server-data` alone.** It already requires **Manage Server**, so it stays hidden from members. Don't add a role override that allows it.
+5. **Give `@everyone` Use Activities** in the voice channel(s) where you want Activity games.
+6. **Test with an ordinary member account, not an admin.** Admins see every command. In `#games`, type `/` and check that only this bot's commands appear. Then try a command in another channel and check it's blocked.
+7. **Repeat step 2 whenever you add a new bot.** New apps are allowed everywhere commands are allowed until you switch them off.
+
+Discord documents these settings only in outline. If an app still shows up in `#games` after step 2, remove that app's access with a `#games` channel override in its Integrations page, and re-test as a member.
+
+### What can't be fully prevented
+
+- **Alt accounts.** Someone with several accounts can still farm a little (for example, a royale with an alt). The 2-player rule and the duel pair limit keep this small. The boards are just for fun, and `/server-data wipe` resets them if needed.
+- **Auto-clickers in Mass Reaction.** A script that clicks the moment the pad turns green looks like a very fast human. Taps under 100 ms are already rejected.
+- **What people type.** Clues, quiz questions and Activity chat are typed by members, and only quizzes are saved. Mods can remove quizzes with `/server-data delete-quiz`, and remove people from the voice channel to end an Activity session.
 
 ## Privacy & security at a glance
 
 - **Cannot read your chat.** Only the `Guilds` gateway intent is used. There is no Message Content access, and the bot can't see members or presence either.
-- **Minimal data.** The only things stored are per-server score totals keyed by user ID, and quizzes members write for their server (with the author's user ID). Drawings, guesses, clues, votes, trades and in-game chat are kept in memory only. Old data is deleted automatically after 90 days by default.
+- **Minimal data.** The only things stored are per-server score totals keyed by user ID (also split by day for the daily, weekly and monthly boards), and quizzes members write for their server (with the author's user ID). Drawings, guesses, clues, votes, trades and in-game chat are kept in memory only. Old data is deleted automatically after 90 days by default.
 - **User controls.** `/privacy my-data` exports a user's data, `/privacy forget-me` deletes it and `/privacy opt-out` stops tracking. Admins can delete all of a server's data with `/server-data wipe`.
 - **No pings.** Every message the bot posts has mentions disabled, so it can never ping `@everyone`, roles or users.
 - **Activity sandbox.** The Activity games run inside Discord's sandboxed iframe, and every request goes through Discord's proxy, so the server never sees players' IP addresses. It uses the `identify` OAuth scope only. Players are checked with Discord to confirm they're really in that Activity instance.
@@ -94,12 +156,12 @@ src/
   render/             board images and confetti GIFs (@napi-rs/canvas + gifenc)
   ui/card.ts          Components V2 message cards shared by every game
   games/              all chat games, duel/turn helpers, pure rules (logic.ts), session lock, content
-  commands/           /play, /draw, /leaderboard, /privacy, /server-data
+  commands/           /play, /draw, /help, /leaderboard, /privacy, /server-data
   activity/server.ts  HTTP + WebSocket server for the Activity (auth, rate limits)
   activity/hub.ts     one per Activity instance: players, host, game picker, message envelope
   activity/base.ts    shared room plumbing for Activity games (seats, host, chat, timers)
   activity/room.ts    Sketch Party logic
-  activity/games/     Odd One Out, Forbidden Words, Quiz Arena, Perp Arena (+ pure market engine)
+  activity/games/     Odd One Out, Forbidden Words, Quiz Arena, Perp Arena (+ pure market engine), Mass Reaction
   activity/data/      word pairs, cards and built-in quizzes
   shared/             message types shared with the Activity frontend, one file per game
 activity/             Activity frontend (Vite, vanilla TypeScript): hub in main.ts, one screen per game

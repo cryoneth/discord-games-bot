@@ -315,8 +315,27 @@ function forfeitButton(id: string): ButtonBuilder {
   return new ButtonBuilder().setCustomId(`${id}:forfeit`).setLabel('Forfeit').setEmoji('🏳️').setStyle(ButtonStyle.Secondary);
 }
 
+/** The same two players score at most this many games of one duel per UTC day (stops win-trading). */
+export const PAIR_DAILY_LIMIT = 5;
+const pairGames = new Map<string, number>();
+let pairDay = '';
+
+/** Counts a finished duel for the pair; false once they've hit today's limit. Exported for tests. */
+export function takePairSlot(guildId: string, gameId: GameId, players: readonly [string, string], now = Date.now()): boolean {
+  const day = new Date(now).toISOString().slice(0, 10);
+  if (day !== pairDay) {
+    pairDay = day;
+    pairGames.clear();
+  }
+  const key = `${guildId}:${gameId}:${[...players].sort().join(':')}`;
+  const n = pairGames.get(key) ?? 0;
+  if (n >= PAIR_DAILY_LIMIT) return false;
+  pairGames.set(key, n + 1);
+  return true;
+}
+
 export function recordDuel(store: ScoreStore, guildId: string | null, gameId: GameId, players: [string, string], ending: Ending): void {
-  if (!ending) return;
+  if (!ending || !guildId || !takePairSlot(guildId, gameId, players)) return;
   store.record(
     guildId,
     gameId,

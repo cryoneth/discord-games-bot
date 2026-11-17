@@ -6,7 +6,7 @@ import { EmbedBuilder, type Client } from 'discord.js';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { Config } from '../config.js';
 import { gameInfo, HUB_LIMITS, type ClientMessage, type GameId, type ServerMessage } from '../shared/protocol.js';
-import type { ScoreStore } from '../store.js';
+import { MIN_SCORED_PLAYERS, type ScoreStore } from '../store.js';
 import { log } from '../util/log.js';
 import { TokenBucket } from '../util/ratelimit.js';
 import { gameFactory } from './games/index.js';
@@ -212,7 +212,7 @@ export function startWebServer({ config, store, discord }: Deps) {
   });
 
   const onGameEnd = (hub: Hub, game: GameId, results: RoomResult[]) => {
-    store.record(hub.guildId, game, results);
+    const counted = store.record(hub.guildId, game, results);
     if (!hub.channelId || results.length === 0) return;
     const info = gameInfo(game);
     void (async () => {
@@ -227,9 +227,12 @@ export function startWebServer({ config, store, discord }: Deps) {
             .setDescription(
               results
                 .slice(0, 10)
-                .map((r, i) => `${medals[i] ?? `**${i + 1}.**`} <@${r.userId}> · ${r.points} pts`)
+                .map((r, i) => `${medals[i] ?? `**${i + 1}.**`} <@${r.userId}>`)
                 .join('\n'),
-            ),
+            )
+            .setFooter({
+              text: `${counted ? '' : `Practice round: games count for the leaderboard with ${MIN_SCORED_PLAYERS}+ players. `}🎈 All games and leaderboards are just for fun.`,
+            }),
         ],
       });
     })().catch((err) => log.warn(`Could not post ${game} results`, err));

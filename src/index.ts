@@ -1,6 +1,6 @@
 import { Client, Events, GatewayIntentBits, MessageFlags, PermissionFlagsBits, type ChatInputCommandInteraction } from 'discord.js';
 import { startWebServer } from './activity/server.js';
-import { handleLaunch, handleLeaderboard, handlePrivacy, handleServerData } from './commands/meta.js';
+import { handleAutocomplete, handleHelp, handleLaunch, handleLeaderboard, handlePrivacy, handleServerData } from './commands/meta.js';
 import { loadConfig } from './config.js';
 import { handleDots, handleFourInARow, handleGomoku, handleHigherLower, handleMancala, handleNim, handleTicTacToe } from './games/boardgames.js';
 import { handleReaction } from './games/reaction.js';
@@ -70,6 +70,8 @@ async function route(interaction: ChatInputCommandInteraction): Promise<void> {
       return handleLaunch(interaction);
     case 'leaderboard':
       return handleLeaderboard(interaction, store);
+    case 'help':
+      return handleHelp(interaction);
     case 'privacy':
       return handlePrivacy(interaction, store, config.retentionDays);
     case 'server-data':
@@ -97,6 +99,7 @@ function missingChannelPermissions(interaction: ChatInputCommandInteraction): st
 }
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  if (interaction.isAutocomplete()) return handleAutocomplete(interaction, store);
   if (!interaction.isChatInputCommand()) return; // buttons are handled by per-game collectors
   const wait = commandCooldown.hit(interaction.user.id);
   if (wait > 0) {

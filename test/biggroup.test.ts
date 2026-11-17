@@ -195,3 +195,21 @@ test('mass reaction: a late joiner watches instead of playing', async () => {
   assert.equal(me.alive, false);
   room.dispose();
 });
+
+test('mass reaction: a tampered client can claim at most 300 ms of lag', async () => {
+  const room = new MassReactionRoom(
+    { instanceId: 'i', guildId: null, channelId: null, onGameEnd: () => {} },
+    { readyMs: 5, waitMinMs: 5, waitMaxMs: 5, windowMs: 2000, resultMs: 1000 },
+  );
+  const a = player();
+  room.join({ id: 'a', name: 'A' }, a.conn);
+  room.join({ id: 'b', name: 'B' }, player().conn);
+  room.handle('a', { t: 'start' });
+  while (room.currentPhase !== 'go') await wait(1);
+  await wait(700);
+  room.handle('a', { t: 'tap', ms: 150 }); // really took ~700 ms on the server's clock
+  room.handle('b', { t: 'tap', ms: 650 });
+  const ms = a.state().last!.entries.find((e) => e.id === 'a')!.ms!;
+  assert.ok(ms >= 390, `claimed 150 ms but was clamped up, got ${ms}`);
+  room.dispose();
+});

@@ -67,3 +67,6 @@ export interface ChatMessage {
   text: string;
 }
 export const MAX_CHAT_LENGTH = 120;
+
+/** Shown wherever scores appear. */
+export const JUST_FOR_FUN = 'All games and leaderboards are just for fun.';

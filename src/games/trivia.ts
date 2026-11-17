@@ -70,6 +70,8 @@ export async function handleTrivia(interaction: ChatInputCommandInteraction, dep
   }
 
   const scores = new Map<string, number>();
+  /** Everyone who answered at least once, so a lone right answer among several players still counts. */
+  const played = new Set<string>();
   const progress = (i: number) => pool.map((_, k) => (k < i ? '●' : k === i ? '◉' : '○')).join('');
   const standings = (n: number) => {
     const ranking = [...scores.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
@@ -143,6 +145,7 @@ export async function handleTrivia(interaction: ChatInputCommandInteraction, dep
           return;
         }
         answers.set(btn.user.id, { choice, at: Date.now() });
+        played.add(btn.user.id);
         await btn.reply({ content: `🔒 Locked in **${LETTERS[choice]}. ${options[choice]}**`, flags: MessageFlags.Ephemeral }).catch(() => {});
         scheduleRefresh();
       });
@@ -189,7 +192,10 @@ export async function handleTrivia(interaction: ChatInputCommandInteraction, dep
     deps.store.record(
       interaction.guildId,
       'trivia',
-      ranking.map(([userId, points]) => ({ userId, points, won: points === top && top > 0 })),
+      [...played].map((userId) => {
+        const points = scores.get(userId) ?? 0;
+        return { userId, points, won: points === top && top > 0 };
+      }),
     );
 
     const stopped = abort.signal.aborted;

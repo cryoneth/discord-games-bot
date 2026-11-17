@@ -43,6 +43,8 @@ export class QuizRoom extends BaseRoom<QuizSeat> {
   private askedAt = 0;
   private answers = new Map<string, { index: number; at: number }>();
   private reveal: QuizStateMessage['reveal'] = null;
+  /** Author of the custom quiz being played; they know the answers, so they don't score. */
+  private authorId: string | null = null;
 
   constructor(
     ctx: RoomContext,
@@ -92,6 +94,8 @@ export class QuizRoom extends BaseRoom<QuizSeat> {
 
   protected begin(): void {
     this.quiz = this.findQuiz(this.settings.quizId)!;
+    // Remembered now, in case the quiz is deleted mid-game.
+    this.authorId = this.quiz.id.startsWith('builtin:') ? null : (this.repo.get(this.quiz.id)?.ownerId ?? null);
     if (!this.quiz.id.startsWith('builtin:')) this.repo.markUsed(this.quiz.id);
     this.questions = this.settings.shuffle ? shuffle(this.quiz.questions) : [...this.quiz.questions];
     this.index = 0;
@@ -147,14 +151,9 @@ export class QuizRoom extends BaseRoom<QuizSeat> {
         for (const p of this.players.values()) this.sendTo(p.id, { t: 'quizzes', items: this.summaries(p.id) } satisfies QuizServerMessage);
         return;
       }
-      case 'remove': {
-        if (typeof msg.id !== 'string' || !ID_RE.test(msg.id)) return;
-        if (!this.repo.remove(seat.id, msg.id)) return this.direct(seat.id, 'Only the author can delete this quiz.');
-        if (this.settings.quizId === msg.id) this.settings = { ...this.settings, quizId: BUILTIN_QUIZZES[0]!.id };
-        for (const p of this.players.values()) this.sendTo(p.id, { t: 'quizzes', items: this.summaries(p.id) } satisfies QuizServerMessage);
-        this.broadcastState();
-        return;
-      }
+      case 'remove':
+        // Deleting quizzes is for server managers only (/server-data delete-quiz).
+        return this.direct(seat.id, 'Only server managers can delete quizzes, with /server-data delete-quiz.');
     }
   }
 
@@ -232,7 +231,12 @@ export class QuizRoom extends BaseRoom<QuizSeat> {
     this.system(ranking[0] && top > 0 ? `🏆 ${ranking[0].name} wins with ${top} points!` : 'Quiz over!');
     this.broadcastState();
     // Quiz points run into the thousands, so scale them to sit alongside other games.
-    this.reportResults(ranking, (s) => s.score === top && top > 0, (s) => s.score / 10);
+    // The author of a custom quiz knows every answer, so their score doesn't count.
+    const authorId = this.authorId;
+    const counted = ranking.filter((s) => s.id !== authorId);
+    const countedTop = counted[0]?.score ?? 0;
+    if (authorId && this.players.has(authorId)) this.system("The quiz's author played along for fun; their score isn't added to the leaderboard.");
+    this.reportResults(counted, (s) => s.score === countedTop && countedTop > 0, (s) => s.score / 10);
   }
 
   protected stateFor(userId: string): QuizStateMessage {

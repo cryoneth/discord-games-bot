@@ -7,8 +7,9 @@ This document describes the data handled by this bot as shipped in this reposito
 | Data | Why | Retention |
 |---|---|---|
 | Discord user ID, server ID, game, points, wins, games played, last-updated time | Leaderboards | Deleted automatically after 90 days without updates (configurable) |
+| The same points, wins and games played split by UTC day | Daily, weekly and monthly leaderboards | Days older than 90 days are deleted automatically (configurable) |
 | Discord user ID of users who opted out | To honor the opt-out | Until the user opts back in |
-| Quizzes written in Quiz Arena: title, questions, answers, the author's Discord user ID, the server ID, created/edited/last-played times | So the server's members can play them again, and so only the author can edit or delete them | Deleted automatically after 90 days without being edited or played (configurable) |
+| Quizzes written in Quiz Arena: title, questions, answers, the author's Discord user ID, the server ID, created/edited/last-played times | So the server's members can play them again, and so only the author can edit them (server managers can delete them) | Deleted automatically after 90 days without being edited or played (configurable) |
 
 That is all. No usernames, nicknames, avatars, emails, IP addresses, message content, drawings or guesses are stored.
 
@@ -31,7 +32,11 @@ That is all. No usernames, nicknames, avatars, emails, IP addresses, message con
 - `/privacy my-data` gives you a JSON export of everything stored about you.
 - `/privacy forget-me` deletes all of your records immediately, including quizzes you wrote.
 - `/privacy opt-out` deletes your records and stops new ones from being recorded.
-- Server managers can use `/server-data wipe` to delete all records for their server, including its quizzes.
+- Server managers can use `/server-data wipe` to delete all records for their server, including its quizzes, and `/server-data delete-quiz` to remove a single quiz.
+
+## Just for fun
+
+All games and leaderboards are just for fun.
 
 ## Third parties
 

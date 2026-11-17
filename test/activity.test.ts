@@ -189,6 +189,31 @@ test('quiz: full game with speed scoring, early reveal and no answer leaks', asy
   }
 });
 
+test('quiz: the author of a custom quiz plays for fun but does not score', async () => {
+  const { store, done } = tempStore();
+  let results: RoomResult[] = [];
+  try {
+    const repo = store.quizzes('g');
+    const saved = repo.save('A', { title: 'Mine', questions: [{ q: 'Two plus two?', answers: ['4', '5'], correct: 0, seconds: 5 }] });
+    assert.ok('id' in saved);
+    const room = new QuizRoom(ctx((r) => (results = r)), repo, { introMs: 5, revealMs: 5, secondMs: 20 });
+    for (const id of ['A', 'B', 'C']) room.join({ id, name: id }, client().conn);
+    room.handle('A', { t: 'settings', settings: { quizId: saved.id, shuffle: false } });
+    room.handle('A', { t: 'start' });
+    await wait(15);
+    room.handle('A', { t: 'answer', index: 0 });
+    room.handle('B', { t: 'answer', index: 0 });
+    room.handle('C', { t: 'answer', index: 1 });
+    await wait(30);
+    assert.equal(room.currentPhase, 'finished');
+    assert.deepEqual(results.map((r) => r.userId).sort(), ['B', 'C']);
+    assert.equal(results.find((r) => r.userId === 'B')?.won, true);
+    room.dispose();
+  } finally {
+    done();
+  }
+});
+
 // ── Odd One Out ────────────────────────────────────────────────────────────
 
 test('odd one out: clues can’t give the word away', () => {

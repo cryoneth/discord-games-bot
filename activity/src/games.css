@@ -403,3 +403,5 @@ button.end-game[data-armed] { background: var(--bad); color: #fff; }
 .mr-fast .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mr-fast .ms { font-variant-numeric: tabular-nums; }
 .app.mass .hint { font-weight: 800; }
+
+.fun-note { text-align: center; color: var(--muted); font-size: 12.5px; padding: 2px 8px 0; }

@@ -181,21 +181,6 @@ export function createQuiz(ctx: Ctx): View {
     draft = null;
   }
 
-  /** Two-step delete (dialogs like confirm() are blocked inside Discord). */
-  function deleteButton(id: string) {
-    let armed = false;
-    const b = button('Delete quiz', () => {
-      if (!armed) {
-        armed = true;
-        b.textContent = 'Click again to delete';
-        return;
-      }
-      ctx.send({ t: 'remove', id });
-      closeEditor();
-    }, 'small danger');
-    return b;
-  }
-
   function renderEditor() {
     if (!draft) return;
     const d = draft;
@@ -293,7 +278,6 @@ export function createQuiz(ctx: Ctx): View {
         'header',
         { className: 'editor-head' },
         el('h2', { textContent: d.id ? 'Edit quiz' : 'New quiz' }),
-        d.id ? deleteButton(d.id) : null,
         button('✕', closeEditor, 'icon'),
       ),
       el(
@@ -303,7 +287,7 @@ export function createQuiz(ctx: Ctx): View {
         ...questions,
         d.questions.length < QUIZ_LIMITS.maxQuestions ? button('＋ Add question', () => (d.questions.push(blankQuestion()), renderEditor())) : null,
         io,
-        el('p', { className: 'sub small', textContent: 'Quizzes are saved for this server so anyone here can play them. Only you can edit or delete yours. Unused quizzes are deleted automatically after a while.' }),
+        el('p', { className: 'sub small', textContent: 'Quizzes are saved for this server so anyone here can play them. Only you can edit yours, and only server managers can delete quizzes. Unused quizzes are deleted automatically after a while.' }),
       ),
       el('footer', { className: 'editor-foot' }, editorError ? el('div', { className: 'error', textContent: editorError }) : null, save),
     );

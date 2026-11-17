@@ -105,8 +105,7 @@ export type QuizClientMessage =
   | { t: 'next' }
   | { t: 'list' }
   | { t: 'load'; id: string }
-  | { t: 'save'; id?: string; quiz: QuizDraft }
-  | { t: 'remove'; id: string };
+  | { t: 'save'; id?: string; quiz: QuizDraft };
 
 export interface QuizPlayerView {
   id: string;

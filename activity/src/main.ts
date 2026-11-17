@@ -1,5 +1,5 @@
 import { DiscordSDK } from '@discord/embedded-app-sdk';
-import { GAMES, type ClientMessage, type GameId, type HubPlayer, type ServerMessage } from '../../src/shared/protocol';
+import { GAMES, JUST_FOR_FUN, type ClientMessage, type GameId, type HubPlayer, type ServerMessage } from '../../src/shared/protocol';
 import { button, card, el, renderPlayers, waiting, type Ctx, type View } from './core';
 import { icon, type IconName } from './icons';
 import { createForbidden } from './games/forbidden';
@@ -119,6 +119,7 @@ function renderPicker() {
         el('p', { className: 'sub', textContent: amHost ? 'You’re the host. Pick a game for everyone.' : '' }, !amHost ? waiting(`${host?.name ?? 'The host'} is picking a game…`) : ''),
       ),
       el('main', { className: 'picker-body' }, grid, el('aside', { className: 'panel players' }, el('h2', { textContent: `Here now · ${online}` }), list)),
+      el('footer', { className: 'fun-note', textContent: JUST_FOR_FUN }),
     ),
   );
 }
