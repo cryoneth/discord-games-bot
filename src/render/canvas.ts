@@ -10,6 +10,7 @@ const fontDir = fileURLToPath(new URL('../../assets/fonts/', import.meta.url));
 for (const [file, family] of [
   ['nunito-700.ttf', 'Nunito'],
   ['nunito-900.ttf', 'Nunito Black'],
+  ['kalam-700.ttf', 'Kalam'],
 ] as const) {
   // Fail loudly: a missing font would silently render boxes instead of letters.
   if (!GlobalFonts.registerFromPath(`${fontDir}${file}`, family)) throw new Error(`Could not load font ${fontDir}${file}`);
@@ -17,28 +18,32 @@ for (const [file, family] of [
 
 export type Ctx = SKRSContext2D;
 
+/** Sketchbook palette: marker colours and ink on cream paper. */
 export const THEME = {
-  bg: '#16182b',
-  panel: '#22253f',
-  panelLight: '#2e3254',
-  grid: '#3a3f6b',
-  text: '#f2f3ff',
-  muted: '#8b90c0',
-  red: '#ff5470',
-  redDark: '#c22f4b',
-  yellow: '#ffd23f',
-  yellowDark: '#d69a00',
-  teal: '#2ee6c5',
-  blue: '#4c6fff',
-  blueDark: '#2f4bd1',
-  green: '#3ecf6e',
-  amber: '#f5b53a',
-  slate: '#4a4f73',
-  confetti: ['#ff5470', '#ffd23f', '#2ee6c5', '#4c6fff', '#b46cff', '#3ecf6e'],
+  paper: '#fdf8ec',
+  paperDot: '#e2dccb',
+  ink: '#2b2d42',
+  pencil: '#9097ab',
+  white: '#ffffff',
+  red: '#ff5a6e',
+  redInk: '#e03a52',
+  teal: '#22c4b2',
+  tealInk: '#0f9d8e',
+  yellow: '#ffcf3f',
+  highlight: 'rgba(255, 214, 10, 0.5)',
+  blue: '#5a82ff',
+  blueLight: '#8ea8ff',
+  green: '#5ccf6f',
+  amber: '#ffb238',
+  slate: '#cfd2dc',
+  wood: '#eebd7a',
+  woodDark: '#cf9547',
+  confetti: ['#ff5a6e', '#ffcf3f', '#22c4b2', '#5a82ff', '#a56bff', '#5ccf6f', '#ff8a3d'],
 } as const;
 
-export function font(size: number, black = false): string {
-  return `${size}px "${black ? 'Nunito Black' : 'Nunito'}"`;
+/** Handwritten font for everything drawn on the boards. */
+export function font(size: number): string {
+  return `${size}px "Kalam"`;
 }
 
 export function roundRect(ctx: Ctx, x: number, y: number, w: number, h: number, r: number): void {
@@ -46,14 +51,22 @@ export function roundRect(ctx: Ctx, x: number, y: number, w: number, h: number, 
   ctx.roundRect(x, y, w, h, r);
 }
 
-/** Rounded background panel filling the whole canvas, with a subtle vertical gradient. */
+/** A sheet of dotted sketchbook paper filling the whole canvas, with rounded corners. */
 export function background(ctx: Ctx, w: number, h: number): void {
-  const g = ctx.createLinearGradient(0, 0, 0, h);
-  g.addColorStop(0, '#1d2040');
-  g.addColorStop(1, THEME.bg);
-  ctx.fillStyle = g;
-  roundRect(ctx, 0, 0, w, h, 28);
+  ctx.save();
+  roundRect(ctx, 0, 0, w, h, 26);
+  ctx.fillStyle = THEME.paper;
   ctx.fill();
+  ctx.clip();
+  ctx.fillStyle = THEME.paperDot;
+  const step = 24;
+  for (let y = step; y < h; y += step)
+    for (let x = step; x < w; x += step) {
+      ctx.beginPath();
+      ctx.arc(x, y, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  ctx.restore();
 }
 
 export function newCanvas(w: number, h: number) {

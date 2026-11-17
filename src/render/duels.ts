@@ -4,80 +4,52 @@
  * contain no usernames: seats are told apart by colour (red = first, teal = second).
  */
 import { MANCALA_STORE, rankLabel, sideLine, type Cell, type Dots, type PlayingCard, type Side, type Suit } from '../games/logic.js';
-import { drawO, drawX, type Scene } from './boards.js';
-import { background, font, roundRect, THEME, type Ctx } from './canvas.js';
+import { counter, drawO, drawX, pulse, strikeThrough, type Scene } from './boards.js';
+import { background, THEME, type Ctx } from './canvas.js';
+import {
+  celebrateAround,
+  handLoop,
+  hatch,
+  highlight,
+  highlightCircle,
+  linePts,
+  rectPts,
+  sketchCircle,
+  sketchLine,
+  sketchRect,
+  stroke,
+  write,
+  type Pt,
+} from './sketch.js';
 
-const pulse = (t: number) => 0.5 + 0.5 * Math.sin(t * Math.PI * 2);
 export const SEAT_COLOR = [THEME.red, THEME.teal] as const;
+/** Darker seat colours for text and thin lines, which need more contrast on paper. */
+const SEAT_INK = [THEME.redInk, THEME.tealInk] as const;
 
-function glow(ctx: Ctx, color: string, blur: number, fn: () => void): void {
-  ctx.save();
-  ctx.shadowColor = color;
-  ctx.shadowBlur = blur;
-  fn();
-  ctx.restore();
-}
-
-function text(ctx: Ctx, s: string, x: number, y: number, size: number, color: string, opts: { black?: boolean; align?: CanvasTextAlign } = {}): void {
-  ctx.font = font(size, opts.black ?? true);
-  ctx.textAlign = opts.align ?? 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = color;
-  ctx.fillText(s, x, y);
-}
-
-function disc(ctx: Ctx, cx: number, cy: number, r: number, light: string, dark: string): void {
-  const g = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.1, cx, cy, r);
-  g.addColorStop(0, light);
-  g.addColorStop(1, dark);
-  ctx.fillStyle = g;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-/** A tick, or a cross when `cross`, drawn with lines (the bundled font has no such glyphs). */
+/** A tick, or a cross when `cross`, as two quick marker strokes. */
 function mark(ctx: Ctx, cross: boolean, cx: number, cy: number, r: number, color: string): void {
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 8;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
+  const o = { color, width: 9, passes: 1 as const, overshoot: 0 };
   if (cross) {
-    ctx.moveTo(cx - r, cy - r);
-    ctx.lineTo(cx + r, cy + r);
-    ctx.moveTo(cx + r, cy - r);
-    ctx.lineTo(cx - r, cy + r);
+    sketchLine(ctx, cx - r, cy - r, cx + r, cy + r, o);
+    sketchLine(ctx, cx + r, cy - r, cx - r, cy + r, o);
   } else {
-    ctx.moveTo(cx - r, cy);
-    ctx.lineTo(cx - r * 0.3, cy + r * 0.7);
-    ctx.lineTo(cx + r, cy - r * 0.8);
+    stroke(ctx, [[cx - r, cy], [cx - r * 0.3, cy + r * 0.7], [cx + r, cy - r * 0.8]], false, { ...o, amp: 0.5 });
   }
-  ctx.stroke();
 }
 
+/** A hand-drawn arrow, slightly bowed. */
 function arrow(ctx: Ctx, cx: number, cy: number, dir: 1 | -1, color: string): void {
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 3;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(cx - 22 * dir, cy);
-  ctx.lineTo(cx + 22 * dir, cy);
-  ctx.moveTo(cx + 15 * dir, cy - 5);
-  ctx.lineTo(cx + 22 * dir, cy);
-  ctx.lineTo(cx + 15 * dir, cy + 5);
-  ctx.stroke();
+  const pts: Pt[] = linePts(cx - 26 * dir, cy, cx + 26 * dir, cy, 4).map(([x, y], k, a) => [x, y - Math.sin((k / (a.length - 1)) * Math.PI) * 4 * dir]);
+  stroke(ctx, pts, false, { color, width: 3.5, passes: 1, amp: 0.6 });
+  const tip = pts.at(-1)!;
+  stroke(ctx, [[tip[0] - 9 * dir, tip[1] - 7], tip, [tip[0] - 9 * dir, tip[1] + 6]], false, { color, width: 3.5, passes: 1, amp: 0.4 });
 }
-
-const STONE = [
-  [THEME.red, THEME.redDark],
-  [THEME.teal, '#14a58b'],
-] as const;
 
 // ── Dots and boxes ───────────────────────────────────────────────────────────
 
 export function dotsScene(d: Dots, last: { box: number; side: Side } | null, selected: number, celebrate = false): Scene {
   const cell = 120;
-  const pad = 46;
+  const pad = 48;
   const W = pad * 2 + cell * d.w;
   const H = pad * 2 + cell * d.h;
   const lastLine = last ? sideLine(d, last.box, last.side) : null;
@@ -89,57 +61,39 @@ export function dotsScene(d: Dots, last: { box: number; side: Side } | null, sel
       const px = (x: number) => pad + x * cell;
       const py = (y: number) => pad + y * cell;
 
-      // Boxes: owner tint and mark, or the keypad number when still open.
+      // Boxes: hatched in the owner's colour with their mark, or the keypad number when still open.
       for (let b = 0; b < d.w * d.h; b++) {
         const x = px(b % d.w);
         const y = py(Math.floor(b / d.w));
         const owner = d.boxes[b];
+        if (b === selected) highlight(ctx, x + 10, y + 10, cell - 20, cell - 20, THEME.highlight, b + 1);
         if (owner) {
-          ctx.fillStyle = owner === 1 ? 'rgba(255,84,112,0.16)' : 'rgba(46,230,197,0.16)';
-          ctx.fillRect(x + 6, y + 6, cell - 12, cell - 12);
-          const grow = celebrate ? 1 + 0.08 * pulse(t + b * 0.07) : 1;
-          if (owner === 1) drawX(ctx, x + cell / 2, y + cell / 2, cell * 0.2 * grow, 11);
-          else drawO(ctx, x + cell / 2, y + cell / 2, cell * 0.24 * grow, 10);
+          hatch(ctx, rectPts(x + 8, y + 8, cell - 16, cell - 16, 6), SEAT_COLOR[owner - 1]!, { gap: 11, width: 2.5, seed: b, alpha: 0.45 });
+          const grow = celebrate ? 1 + 0.1 * pulse(t + b * 0.07) : 1;
+          if (owner === 1) drawX(ctx, x + cell / 2, y + cell / 2, cell * 0.2 * grow, 12);
+          else drawO(ctx, x + cell / 2, y + cell / 2, cell * 0.24 * grow, 11);
         } else {
-          text(ctx, String(b + 1), x + cell / 2, y + cell / 2 + 2, 34, b === selected ? THEME.yellow : THEME.grid);
-        }
-        if (b === selected) {
-          glow(ctx, THEME.yellow, 14, () => {
-            ctx.strokeStyle = THEME.yellow;
-            ctx.lineWidth = 3;
-            ctx.setLineDash([10, 8]);
-            roundRect(ctx, x + 10, y + 10, cell - 20, cell - 20, 12);
-            ctx.stroke();
-            ctx.setLineDash([]);
-          });
+          write(ctx, String(b + 1), x + cell / 2, y + cell / 2, 40, b === selected ? THEME.ink : THEME.pencil);
         }
       }
 
-      // Lines: faint guides for open ones, the drawer's colour for taken ones.
+      // Lines: faint pencil dashes for open ones, the drawer's marker colour for taken ones.
       const line = (x1: number, y1: number, x2: number, y2: number, who: Cell, isLast: boolean) => {
-        ctx.lineCap = 'round';
         if (!who) {
-          ctx.strokeStyle = 'rgba(139,144,192,0.18)';
-          ctx.lineWidth = 4;
-          ctx.setLineDash([2, 12]);
+          ctx.save();
+          ctx.strokeStyle = THEME.pencil;
+          ctx.globalAlpha = 0.45;
+          ctx.lineWidth = 3;
+          ctx.setLineDash([3, 12]);
           ctx.beginPath();
           ctx.moveTo(x1, y1);
           ctx.lineTo(x2, y2);
           ctx.stroke();
-          ctx.setLineDash([]);
+          ctx.restore();
           return;
         }
-        const color = SEAT_COLOR[who - 1]!;
-        const draw = () => {
-          ctx.strokeStyle = color;
-          ctx.lineWidth = isLast ? 11 : 9;
-          ctx.beginPath();
-          ctx.moveTo(x1, y1);
-          ctx.lineTo(x2, y2);
-          ctx.stroke();
-        };
-        if (isLast) glow(ctx, '#ffffff', 16, draw);
-        else draw();
+        if (isLast) stroke(ctx, linePts(x1, y1, x2, y2), false, { color: THEME.highlight, width: 26, passes: 1, amp: 1 });
+        sketchLine(ctx, x1, y1, x2, y2, { color: SEAT_COLOR[who - 1]!, width: 10, passes: 1, amp: 1.8, overshoot: 0 });
       };
       for (let y = 0; y <= d.h; y++)
         for (let x = 0; x < d.w; x++) {
@@ -153,12 +107,7 @@ export function dotsScene(d: Dots, last: { box: number; side: Side } | null, sel
         }
 
       for (let y = 0; y <= d.h; y++)
-        for (let x = 0; x <= d.w; x++) {
-          ctx.fillStyle = THEME.text;
-          ctx.beginPath();
-          ctx.arc(px(x), py(y), 8, 0, Math.PI * 2);
-          ctx.fill();
-        }
+        for (let x = 0; x <= d.w; x++) sketchCircle(ctx, px(x), py(y), 8, { fill: THEME.ink, width: 2, passes: 1, offset: 0.5 });
     },
   };
 }
@@ -172,7 +121,7 @@ export function nimScene(total: number, left: number, lastTaken: number, lastSea
   const gap = 44;
   const stickH = 110;
   const W = 640;
-  const top = 128;
+  const top = 132;
   const H = top + rows * (stickH + 30) + 20;
   return {
     w: W,
@@ -180,8 +129,9 @@ export function nimScene(total: number, left: number, lastTaken: number, lastSea
     draw(ctx, t) {
       background(ctx, W, H);
       const bob = celebrate ? Math.sin(t * Math.PI * 2) * 4 : 0;
-      text(ctx, String(left), W / 2, 58 + bob, 64, left <= 1 ? THEME.red : THEME.yellow);
-      text(ctx, left === 1 ? 'stick left' : 'sticks left', W / 2, 104, 20, THEME.muted, { black: false });
+      write(ctx, String(left), W / 2, 56 + bob, 72, left <= 1 ? THEME.red : THEME.yellow, { outline: THEME.ink, tilt: -0.04 });
+      write(ctx, left === 1 ? 'stick left' : 'sticks left', W / 2, 106, 24, THEME.ink);
+      if (celebrate) celebrateAround(ctx, W / 2 - 70, 14, 140, 84, t, 3);
       for (let k = 0; k < total; k++) {
         const r = Math.floor(k / perRow);
         const inRow = Math.min(perRow, total - r * perRow);
@@ -190,22 +140,19 @@ export function nimScene(total: number, left: number, lastTaken: number, lastSea
         const y = top + r * (stickH + 30);
         const onTable = k < left;
         const justTaken = !onTable && k < left + lastTaken;
-        ctx.globalAlpha = onTable ? 1 : justTaken ? 0.55 : 0.12;
+        ctx.globalAlpha = onTable ? 1 : justTaken ? 0.6 : 0.15;
         const lift = justTaken ? -10 : 0;
-        // Wooden stick with a coloured head.
-        const g = ctx.createLinearGradient(x - 5, 0, x + 5, 0);
-        g.addColorStop(0, '#e9c58a');
-        g.addColorStop(1, '#b98a4a');
-        ctx.fillStyle = g;
-        roundRect(ctx, x - 5, y + 18 + lift, 10, stickH - 18, 4);
-        ctx.fill();
+        const tilt = ((k * 53) % 9 - 4) * 0.012;
+        ctx.save();
+        ctx.translate(x, y + lift + stickH / 2);
+        ctx.rotate(tilt);
+        sketchRect(ctx, -5, -stickH / 2 + 18, 10, stickH - 18, 4, { fill: THEME.wood, width: 2.2, passes: 1, seed: k, offset: 1 });
         const head = justTaken ? SEAT_COLOR[lastSeat]! : THEME.red;
-        disc(ctx, x, y + 16 + lift, 10, head === THEME.red ? '#ff8095' : '#7ff5df', head === THEME.red ? THEME.redDark : '#14a58b');
+        sketchCircle(ctx, 0, -stickH / 2 + 14, 10, { fill: head, width: 2.2, passes: 1, seed: k + 50, offset: 1 });
+        ctx.restore();
         if (justTaken) {
-          ctx.strokeStyle = SEAT_COLOR[lastSeat]!;
-          ctx.lineWidth = 2;
-          roundRect(ctx, x - 14, y - 2 + lift, 28, stickH + 8, 10);
-          ctx.stroke();
+          ctx.globalAlpha = 1;
+          sketchRect(ctx, x - 15, y - 4 + lift, 30, stickH + 12, 12, { stroke: SEAT_INK[lastSeat]!, width: 3, passes: 1, seed: k + 100 });
         }
         ctx.globalAlpha = 1;
       }
@@ -219,44 +166,30 @@ export const ROW_LETTERS = 'ABCDEFGHIJKLMNO';
 
 export function gomokuScene(board: readonly Cell[], size: number, last: number, win: readonly number[], selectedRow: number): Scene {
   const cell = 52;
-  const left = 58;
-  const top = 58;
-  const W = left + cell * size + 30;
-  const H = top + cell * size + 30;
+  const left = 60;
+  const top = 60;
+  const W = left + cell * size + 32;
+  const H = top + cell * size + 32;
+  const cx = (x: number) => left + x * cell + cell / 2;
+  const cy = (y: number) => top + y * cell + cell / 2;
   return {
     w: W,
     h: H,
     draw(ctx, t) {
       background(ctx, W, H);
-      const cx = (x: number) => left + x * cell + cell / 2;
-      const cy = (y: number) => top + y * cell + cell / 2;
-
-      if (selectedRow >= 0) {
-        ctx.fillStyle = 'rgba(255,210,63,0.13)';
-        roundRect(ctx, left - 4, top + selectedRow * cell + 3, cell * size + 8, cell - 6, 12);
-        ctx.fill();
+      if (selectedRow >= 0) highlight(ctx, left - 6, top + selectedRow * cell + 6, cell * size + 12, cell - 12, THEME.highlight, selectedRow + 1);
+      for (let i = 0; i < size; i++) {
+        write(ctx, String(i + 1), cx(i), top / 2 + 2, 26, THEME.ink);
+        write(ctx, ROW_LETTERS[i]!, left / 2 + 2, cy(i), 26, i === selectedRow ? THEME.redInk : THEME.ink);
       }
       for (let i = 0; i < size; i++) {
-        text(ctx, String(i + 1), cx(i), top / 2 + 4, 22, THEME.muted);
-        text(ctx, ROW_LETTERS[i]!, left / 2 + 4, cy(i) + 1, 22, i === selectedRow ? THEME.yellow : THEME.muted);
-      }
-      ctx.strokeStyle = THEME.grid;
-      ctx.lineWidth = 2;
-      for (let i = 0; i < size; i++) {
-        ctx.beginPath();
-        ctx.moveTo(cx(0), cy(i));
-        ctx.lineTo(cx(size - 1), cy(i));
-        ctx.moveTo(cx(i), cy(0));
-        ctx.lineTo(cx(i), cy(size - 1));
-        ctx.stroke();
+        sketchLine(ctx, cx(0), cy(i), cx(size - 1), cy(i), { color: THEME.pencil, width: 2.2, passes: 1, amp: 1.2, overshoot: 4 });
+        sketchLine(ctx, cx(i), cy(0), cx(i), cy(size - 1), { color: THEME.pencil, width: 2.2, passes: 1, amp: 1.2, overshoot: 4 });
       }
       // Star points help find your way around.
       const mid = Math.floor(size / 2);
       for (const [x, y] of [[2, 2], [size - 3, 2], [2, size - 3], [size - 3, size - 3], [mid, mid]]) {
-        ctx.fillStyle = THEME.grid;
-        ctx.beginPath();
-        ctx.arc(cx(x!), cy(y!), 5, 0, Math.PI * 2);
-        ctx.fill();
+        sketchCircle(ctx, cx(x!), cy(y!), 4.5, { fill: THEME.pencil, stroke: null });
       }
       for (let i = 0; i < size * size; i++) {
         const c = board[i];
@@ -264,17 +197,11 @@ export function gomokuScene(board: readonly Cell[], size: number, last: number, 
         const x = cx(i % size);
         const y = cy(Math.floor(i / size));
         const winning = win.includes(i);
-        const r = cell * 0.4 * (winning ? 1 + 0.08 * pulse(t) : 1);
-        const [light, dark] = STONE[c - 1]!;
-        if (winning) glow(ctx, '#ffffff', 8 + 18 * pulse(t), () => disc(ctx, x, y, r, light, dark));
-        else disc(ctx, x, y, r, light, dark);
-        if (i === last && !win.length) {
-          ctx.fillStyle = '#ffffff';
-          ctx.beginPath();
-          ctx.arc(x, y, 6, 0, Math.PI * 2);
-          ctx.fill();
-        }
+        const r = cell * 0.39 * (winning ? 1 + 0.08 * pulse(t + i * 0.03) : 1);
+        counter(ctx, x, y, r, SEAT_COLOR[c - 1]!, i);
+        if (i === last && !win.length) sketchCircle(ctx, x, y, 6, { fill: THEME.ink, stroke: null });
       }
+      if (win.length) strikeThrough(ctx, win.map((i) => [cx(i % size), cy(Math.floor(i / size))] as Pt), cell * 0.45);
     },
   };
 }
@@ -290,8 +217,8 @@ export function mancalaScene(pits: readonly number[], path: readonly number[], w
   const gap = 96;
   const storeW = 82;
   const W = (40 + storeW + 20) * 2 + gap * 6;
-  const H = 330;
-  const rowY = [H - 108, 108];
+  const H = 340;
+  const rowY = [H - 112, 112];
   const pitX = (seat: number, p: number) => (seat === 0 ? 40 + storeW + 20 + gap * p + gap / 2 : 40 + storeW + 20 + gap * (5 - p) + gap / 2);
   const hits = new Set(path);
   return {
@@ -299,59 +226,50 @@ export function mancalaScene(pits: readonly number[], path: readonly number[], w
     h: H,
     draw(ctx, t) {
       background(ctx, W, H);
-      ctx.fillStyle = '#2a2342';
-      roundRect(ctx, 20, 26, W - 40, H - 52, 60);
-      ctx.fill();
+      sketchRect(ctx, 22, 28, W - 44, H - 56, 60, { fill: THEME.wood, hatch: 'rgba(207,149,71,0.55)', hatchGap: 26, width: 4, seed: 9 });
 
-      const seeds = (x: number, y: number, n: number, spread: number) => {
-        // A few seeds as dots; the count is always printed too.
+      // Colourful pebbles; the count is always written too.
+      const seeds = (x: number, y: number, n: number, spread: number, seed: number) => {
         const shown = Math.min(n, 12);
         for (let k = 0; k < shown; k++) {
           const a = k * 2.399 + n; // golden angle spiral
           const rr = spread * Math.sqrt((k + 0.5) / 12);
-          disc(ctx, x + Math.cos(a) * rr, y + Math.sin(a) * rr, 6, '#ffe9a8', '#c99a2e');
+          sketchCircle(ctx, x + Math.cos(a) * rr, y + Math.sin(a) * rr, 6, {
+            fill: THEME.confetti[(k + seed) % THEME.confetti.length]!,
+            width: 1.5,
+            passes: 1,
+            offset: 0.8,
+            seed: seed * 20 + k,
+          });
         }
       };
 
       for (const seat of [0, 1] as const) {
-        const color = SEAT_COLOR[seat]!;
         for (let p = 0; p < 6; p++) {
           const i = seat * 7 + p;
           const x = pitX(seat, p);
           const y = rowY[seat]!;
-          ctx.fillStyle = THEME.bg;
-          ctx.beginPath();
-          ctx.arc(x, y, pitR, 0, Math.PI * 2);
-          ctx.fill();
-          if (hits.has(i)) {
-            ctx.strokeStyle = 'rgba(255,255,255,0.45)';
-            ctx.lineWidth = 3;
-            ctx.stroke();
-          }
-          seeds(x, y - 4, pits[i]!, pitR - 14);
-          text(ctx, String(pits[i]), x, y + pitR - 12, 18, THEME.text);
-          text(ctx, String(p + 1), x, seat === 0 ? y + pitR + 24 : y - pitR - 24, 18, color);
+          sketchCircle(ctx, x, y, pitR, { fill: THEME.paper, width: 3, seed: i, offset: 1 });
+          // Pits the last move sowed into get a white ring (highlighter turns muddy on wood).
+          if (hits.has(i)) handLoop(ctx, x, y, pitR + 7, { color: THEME.white, width: 5, seed: i });
+          seeds(x, y - 6, pits[i]!, pitR - 15, i);
+          write(ctx, String(pits[i]), x, y + pitR - 13, 22, THEME.ink);
+          write(ctx, String(p + 1), x, seat === 0 ? y + pitR + 22 : y - pitR - 22, 24, SEAT_INK[seat]!, { outline: THEME.paper });
         }
         // Stores: seat 0 right, seat 1 left.
         const s = MANCALA_STORE[seat]!;
-        const sx = seat === 0 ? W - 40 - storeW : 40;
-        const box = () => {
-          ctx.fillStyle = THEME.bg;
-          roundRect(ctx, sx, 56, storeW, H - 112, 40);
-          ctx.fill();
-        };
-        if (celebrate && winner === seat) glow(ctx, color, 10 + 22 * pulse(t), box);
-        else box();
-        ctx.strokeStyle = color;
-        ctx.lineWidth = hits.has(s) ? 5 : 3;
-        roundRect(ctx, sx, 56, storeW, H - 112, 40);
-        ctx.stroke();
-        seeds(sx + storeW / 2, H / 2 - 28, pits[s]!, 26);
-        text(ctx, String(pits[s]), sx + storeW / 2, H / 2 + 46, 34, color);
+        const sx = seat === 0 ? W - 42 - storeW : 42;
+        const won = celebrate && winner === seat;
+        sketchRect(ctx, sx, 60, storeW, H - 120, 40, { fill: THEME.paper, width: 3, seed: 30 + seat, offset: 1 });
+        sketchRect(ctx, sx + 5, 65, storeW - 10, H - 130, 35, { stroke: SEAT_COLOR[seat]!, width: hits.has(s) ? 6 : 4, passes: 1, seed: 32 + seat });
+        seeds(sx + storeW / 2, H / 2 - 28, pits[s]!, 24, s);
+        const grow = won ? 1 + 0.12 * pulse(t) : 1;
+        write(ctx, String(pits[s]), sx + storeW / 2, H / 2 + 48, Math.round(40 * grow), SEAT_COLOR[seat]!, { outline: THEME.ink });
+        if (won) celebrateAround(ctx, sx, 60, storeW, H - 120, t, 4);
       }
       // Sowing direction arrows.
-      arrow(ctx, W / 2, H / 2 + 8, 1, 'rgba(255,84,112,0.7)');
-      arrow(ctx, W / 2, H / 2 - 8, -1, 'rgba(46,230,197,0.7)');
+      arrow(ctx, W / 2, H / 2 + 12, 1, SEAT_INK[0]);
+      arrow(ctx, W / 2, H / 2 - 12, -1, SEAT_INK[1]);
     },
   };
 }
@@ -392,44 +310,40 @@ function suitPath(ctx: Ctx, suit: Suit, cx: number, cy: number, s: number): void
     ctx.lineTo(cx - s * 0.3, cy + s);
     ctx.closePath();
   }
+}
+
+/** A suit in marker colour, printed a touch off its ink outline. */
+function suit(ctx: Ctx, kind: Suit, cx: number, cy: number, s: number, color: string): void {
+  ctx.save();
+  ctx.fillStyle = color;
+  suitPath(ctx, kind, cx + s * 0.06, cy + s * 0.05, s);
   ctx.fill();
+  ctx.strokeStyle = THEME.ink;
+  ctx.lineWidth = Math.max(1.5, s * 0.08);
+  ctx.lineJoin = 'round';
+  suitPath(ctx, kind, cx, cy, s);
+  ctx.stroke();
+  ctx.restore();
 }
 
 export function drawCard(ctx: Ctx, c: PlayingCard | null, x: number, y: number, w: number, accent?: string): void {
   const h = w * 1.4;
-  const body = () => {
-    ctx.fillStyle = c ? '#f7f7fc' : THEME.blue;
-    roundRect(ctx, x, y, w, h, w * 0.1);
-    ctx.fill();
-  };
-  if (accent) glow(ctx, accent, 22, body);
-  else body();
+  const seed = Math.round(x + y);
+  if (accent) highlight(ctx, x - 12, y - 12, w + 24, h + 24, accent === THEME.red ? 'rgba(255,90,110,0.45)' : 'rgba(92,207,111,0.5)', seed);
+  sketchRect(ctx, x, y, w, h, w * 0.1, { fill: c ? THEME.white : THEME.blue, width: w > 100 ? 3.5 : 2.5, seed, offset: 1.5 });
   if (!c) {
-    // Card back: inset border and a diamond pattern.
-    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-    ctx.lineWidth = 3;
-    roundRect(ctx, x + w * 0.08, y + w * 0.08, w * 0.84, h - w * 0.16, w * 0.06);
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
-    suitPath(ctx, 'diamonds', x + w / 2, y + h / 2, w * 0.22);
-    text(ctx, '?', x + w / 2, y + h / 2 + 2, w * 0.28, '#ffffff');
+    // Card back: crosshatching and a big question mark.
+    const inner = rectPts(x + w * 0.1, y + w * 0.1, w * 0.8, h - w * 0.2, w * 0.06);
+    hatch(ctx, inner, THEME.blueLight, { gap: 12, angle: -0.8, width: 2.5, seed });
+    hatch(ctx, inner, THEME.blueLight, { gap: 12, angle: 0.8, width: 2.5, seed: seed + 1 });
+    write(ctx, '?', x + w / 2, y + h / 2, w * 0.5, THEME.white, { outline: THEME.ink });
     return;
   }
-  if (accent) {
-    ctx.strokeStyle = accent;
-    ctx.lineWidth = 5;
-    roundRect(ctx, x + 2.5, y + 2.5, w - 5, h - 5, w * 0.1);
-    ctx.stroke();
-  }
-  const color = RED_SUITS.has(c.suit) ? '#e0284d' : '#1f2240';
-  const corner = () => {
-    text(ctx, rankLabel(c.rank), x + w * 0.17, y + w * 0.18, w * 0.2, color);
-    ctx.fillStyle = color;
-    suitPath(ctx, c.suit, x + w * 0.17, y + w * 0.4, w * 0.08);
-  };
-  corner();
-  ctx.fillStyle = color;
-  suitPath(ctx, c.suit, x + w / 2, y + h / 2, w * 0.24);
+  const red = RED_SUITS.has(c.suit);
+  const color = red ? THEME.red : THEME.ink;
+  write(ctx, rankLabel(c.rank), x + w * 0.19, y + w * 0.2, w * 0.24, red ? THEME.redInk : THEME.ink);
+  suit(ctx, c.suit, x + w * 0.19, y + w * 0.44, w * 0.08, color);
+  suit(ctx, c.suit, x + w / 2, y + h / 2 + w * 0.06, w * 0.24, color);
 }
 
 /** The run of revealed cards (oldest first). `hidden`: the next card is still face down. */
@@ -445,19 +359,28 @@ export function higherLowerScene(run: readonly PlayingCard[], hidden: boolean, l
       const current = run.at(-1)!;
       const prev = run.slice(0, -1).slice(-5);
       // History, small and fanned out on the left.
-      prev.forEach((c, k) => drawCard(ctx, c, 26 + k * 34, 120 + (prev.length - 1 - k) * 4, 70));
+      prev.forEach((c, k) => {
+        ctx.save();
+        const x = 26 + k * 34;
+        const y = 120 + (prev.length - 1 - k) * 4;
+        ctx.translate(x + 35, y + 49);
+        ctx.rotate((k - prev.length / 2) * 0.05);
+        drawCard(ctx, c, -35, -49, 70);
+        ctx.restore();
+      });
       const cx = W / 2 - bigW / 2 - 30;
       const bob = celebrate ? Math.sin(t * Math.PI * 2) * 5 : 0;
       const accent = verdict === 'bust' ? THEME.red : verdict === 'ok' ? THEME.green : undefined;
       if (hidden) {
         drawCard(ctx, current, cx, 60, bigW);
         drawCard(ctx, null, W - 40 - bigW, 60, bigW);
-        text(ctx, `${left} left`, W - 40 - bigW / 2, 60 + bigW * 1.4 + 22, 18, THEME.muted, { black: false });
+        write(ctx, `${left} left`, W - 40 - bigW / 2, 60 + bigW * 1.4 + 24, 24, THEME.ink);
       } else {
         const before = run.at(-2);
         if (before) drawCard(ctx, before, cx, 60, bigW);
         drawCard(ctx, current, W - 40 - bigW, 60 + bob, bigW, accent);
-        mark(ctx, verdict === 'bust', W - 40 - bigW - 56, 60 + bigW * 0.7, 18, accent ?? THEME.muted);
+        mark(ctx, verdict === 'bust', W - 40 - bigW - 56, 60 + bigW * 0.7, 18, verdict === 'bust' ? THEME.redInk : verdict === 'ok' ? '#2fa64a' : THEME.pencil);
+        if (celebrate && verdict === 'ok') celebrateAround(ctx, W - 40 - bigW, 60, bigW, bigW * 1.4, t, 5);
       }
     },
   };
@@ -476,33 +399,23 @@ export interface HangmanBoard {
   answer?: string;
 }
 
-function gallows(ctx: Ctx, x: number, y: number, misses: number, color: string): void {
-  ctx.strokeStyle = THEME.muted;
-  ctx.lineWidth = 6;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(x, y + 150);
-  ctx.lineTo(x + 90, y + 150);
-  ctx.moveTo(x + 22, y + 150);
-  ctx.lineTo(x + 22, y);
-  ctx.lineTo(x + 80, y);
-  ctx.lineTo(x + 80, y + 18);
-  ctx.stroke();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 5;
+function gallows(ctx: Ctx, x: number, y: number, misses: number, color: string, seed: number): void {
+  const o = { width: 6, amp: 1.4, seed };
+  sketchLine(ctx, x - 4, y + 150, x + 96, y + 150, o);
+  sketchLine(ctx, x + 22, y + 150, x + 22, y, { ...o, seed: seed + 1 });
+  sketchLine(ctx, x + 16, y, x + 84, y, { ...o, seed: seed + 2 });
+  sketchLine(ctx, x + 22, y + 30, x + 48, y + 2, { ...o, width: 4, seed: seed + 3 });
+  sketchLine(ctx, x + 80, y, x + 80, y + 18, { ...o, width: 3.5, seed: seed + 4 });
+  const p = { color, width: 5, passes: 1 as const, overshoot: 0, seed };
   const parts: (() => void)[] = [
-    () => ctx.arc(x + 80, y + 34, 16, 0, Math.PI * 2),
-    () => (ctx.moveTo(x + 80, y + 50), ctx.lineTo(x + 80, y + 96)),
-    () => (ctx.moveTo(x + 80, y + 62), ctx.lineTo(x + 60, y + 82)),
-    () => (ctx.moveTo(x + 80, y + 62), ctx.lineTo(x + 100, y + 82)),
-    () => (ctx.moveTo(x + 80, y + 96), ctx.lineTo(x + 64, y + 126)),
-    () => (ctx.moveTo(x + 80, y + 96), ctx.lineTo(x + 96, y + 126)),
+    () => handLoop(ctx, x + 80, y + 34, 15, { color, width: 5, seed }),
+    () => sketchLine(ctx, x + 80, y + 50, x + 80, y + 96, p),
+    () => sketchLine(ctx, x + 80, y + 62, x + 60, y + 82, p),
+    () => sketchLine(ctx, x + 80, y + 62, x + 100, y + 82, p),
+    () => sketchLine(ctx, x + 80, y + 96, x + 64, y + 126, p),
+    () => sketchLine(ctx, x + 80, y + 96, x + 96, y + 126, p),
   ];
-  for (let k = 0; k < Math.min(misses, parts.length); k++) {
-    ctx.beginPath();
-    parts[k]!();
-    ctx.stroke();
-  }
+  for (let k = 0; k < Math.min(misses, parts.length); k++) parts[k]!();
 }
 
 /**
@@ -519,13 +432,9 @@ function letterSlots(ctx: Ctx, masked: string, answer: string | undefined, cx: n
     const ch = masked[i]!;
     const real = answer?.[i];
     if (ch !== ' ') {
-      if (/[a-z_]/.test(ch)) {
-        ctx.fillStyle = THEME.muted;
-        roundRect(ctx, x, y + slot * 0.55, slot, 4, 2);
-        ctx.fill();
-      }
+      if (/[a-z_]/.test(ch)) sketchLine(ctx, x + 1, y + slot * 0.62, x + slot - 1, y + slot * 0.62, { width: 3, passes: 1, overshoot: 0, seed: i });
       const letter = ch === '_' ? real : ch;
-      if (letter) text(ctx, letter.toUpperCase(), x + slot / 2, y + 2, Math.round(slot * 0.95), ch === '_' ? THEME.red : color);
+      if (letter) write(ctx, letter.toUpperCase(), x + slot / 2, y, Math.round(slot * 1.05), ch === '_' ? THEME.redInk : color);
     }
     x += slot + gap;
   }
@@ -544,35 +453,28 @@ export function hangmanScene(boards: readonly [HangmanBoard, HangmanBoard], turn
       boards.forEach((b, seat) => {
         const x = 20 + seat * (panelW + 20);
         const color = SEAT_COLOR[seat]!;
-        const panel = () => {
-          ctx.fillStyle = seat === turn ? THEME.panelLight : THEME.panel;
-          roundRect(ctx, x, 20, panelW, H - 40, 22);
-          ctx.fill();
-        };
-        if (celebrate && winner === seat) glow(ctx, THEME.yellow, 10 + 20 * pulse(t), panel);
-        else panel();
-        ctx.strokeStyle = color;
-        ctx.lineWidth = seat === turn ? 4 : 2;
-        roundRect(ctx, x, 20, panelW, H - 40, 22);
-        ctx.stroke();
+        const ink = SEAT_INK[seat]!;
+        if (seat === turn) highlight(ctx, x - 6, 14, panelW + 12, H - 28, THEME.highlight, seat + 1);
+        sketchRect(ctx, x, 20, panelW, H - 40, 20, { fill: THEME.white, stroke: color, width: seat === turn ? 5 : 3, seed: 80 + seat, offset: 1 });
 
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(x + 28, 48, 9, 0, Math.PI * 2);
-        ctx.fill();
-        text(ctx, `${b.lives} ${b.lives === 1 ? 'life' : 'lives'} left`, x + 44, 49, 18, THEME.muted, { black: false, align: 'left' });
+        sketchCircle(ctx, x + 30, 48, 9, { fill: color, width: 2, passes: 1 });
+        write(ctx, `${b.lives} ${b.lives === 1 ? 'life' : 'lives'} left`, x + 48, 48, 22, THEME.ink, { align: 'left' });
 
-        gallows(ctx, x + 24, 78, b.maxLives - b.lives, color);
+        gallows(ctx, x + 26, 78, b.maxLives - b.lives, ink, seat * 10);
 
-        letterSlots(ctx, b.masked, b.answer, x + panelW / 2, H - 66, panelW - 40, b.solved ? THEME.green : THEME.text);
+        letterSlots(ctx, b.masked, b.answer, x + panelW / 2, H - 70, panelW - 40, b.solved ? '#2fa64a' : THEME.ink);
 
-        // Wrong letters to the right of the gallows.
-        ctx.font = font(22, true);
-        ctx.textAlign = 'left';
-        ctx.fillStyle = THEME.red;
+        // Wrong letters to the right of the gallows, each crossed out.
         const wrong = b.wrong.map((w) => w.toUpperCase());
-        for (let k = 0; k < wrong.length; k += 3) ctx.fillText(wrong.slice(k, k + 3).join('  '), x + 168, 100 + (k / 3) * 30, panelW - 186);
-        if (!wrong.length) text(ctx, 'no misses yet', x + 168, 100, 18, THEME.muted, { black: false, align: 'left' });
+        if (!wrong.length) write(ctx, 'no misses yet', x + 170, 100, 22, THEME.pencil, { align: 'left' });
+        wrong.forEach((w, k) => {
+          const lx = x + 178 + (k % 4) * 38;
+          const ly = 102 + Math.floor(k / 4) * 36;
+          if (lx > x + panelW - 20) return;
+          write(ctx, w, lx, ly, 28, THEME.redInk, { tilt: ((k * 31) % 5 - 2) * 0.05 });
+          sketchLine(ctx, lx - 11, ly + 9, lx + 11, ly - 9, { width: 2.5, passes: 1, overshoot: 0, seed: k });
+        });
+        if (celebrate && winner === seat) celebrateAround(ctx, x, 20, panelW, H - 40, t, seat + 6);
       });
     },
   };
@@ -598,42 +500,35 @@ export function numberScene(tracks: readonly [NumberTrack, NumberTrack], max: nu
     h: H,
     draw(ctx, t) {
       background(ctx, W, H);
-      const left = 70;
+      const left = 72;
       const right = W - 40;
       const sx = (n: number) => left + ((n - 1) / (max - 1)) * (right - left);
       tracks.forEach((tr, seat) => {
-        const y = 92 + seat * 118;
+        const y = 94 + seat * 118;
         const color = SEAT_COLOR[seat]!;
-        const dot = () => {
-          ctx.fillStyle = color;
-          ctx.beginPath();
-          ctx.arc(34, y, seat === turn ? 13 : 10, 0, Math.PI * 2);
-          ctx.fill();
-        };
-        if (celebrate && winner === seat) glow(ctx, color, 10 + 20 * pulse(t), dot);
-        else dot();
+        const won = celebrate && winner === seat;
+        const r = (seat === turn ? 14 : 11) * (won ? 1 + 0.15 * pulse(t) : 1);
+        if (seat === turn) highlightCircle(ctx, 34, y, 22);
+        sketchCircle(ctx, 34, y, r, { fill: color, width: 2.5, passes: 1, seed: seat });
         // Full track, then the window still in play.
-        ctx.fillStyle = THEME.panel;
-        roundRect(ctx, left, y - 14, right - left, 28, 14);
-        ctx.fill();
-        ctx.fillStyle = tr.solved ? THEME.green : color;
-        ctx.globalAlpha = tr.solved ? 0.9 : 0.55;
+        sketchRect(ctx, left, y - 14, right - left, 28, 14, { fill: THEME.white, width: 2.5, seed: 90 + seat, offset: 1 });
         const x1 = sx(tr.lo) - 6;
         const x2 = sx(tr.hi) + 6;
-        roundRect(ctx, x1, y - 14, Math.max(12, x2 - x1), 28, 14);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-        for (const g of tr.guesses) {
-          ctx.fillStyle = THEME.text;
-          ctx.fillRect(sx(g) - 1.5, y - 20, 3, 40);
+        const win = rectPts(x1, y - 14, Math.max(12, x2 - x1), 28, 14);
+        if (tr.solved) sketchRect(ctx, x1, y - 14, Math.max(12, x2 - x1), 28, 14, { fill: THEME.green, width: 2.5, passes: 1, seed: 95 + seat });
+        else {
+          hatch(ctx, win, color, { gap: 7, width: 3, seed: 97 + seat });
+          stroke(ctx, win, true, { color: SEAT_INK[seat]!, width: 3, passes: 1, seed: 99 + seat });
         }
+        for (const g of tr.guesses) sketchLine(ctx, sx(g), y - 20, sx(g), y + 20, { width: 3, passes: 1, overshoot: 0, seed: g });
         const label = tr.solved ? `found ${tr.guesses.at(-1)}` : tr.lo === tr.hi ? `it's ${tr.lo}` : `${tr.lo} – ${tr.hi}`;
-        text(ctx, label, (sx(tr.lo) + sx(tr.hi)) / 2, y - 38, 22, tr.solved ? THEME.green : THEME.text);
-        text(ctx, `${tr.guesses.length} guess${tr.guesses.length === 1 ? '' : 'es'}`, right, y + 34, 16, THEME.muted, { black: false, align: 'right' });
-        if (tr.secret !== undefined && !tr.solved) text(ctx, `was ${tr.secret}`, left, y + 34, 16, THEME.red, { black: false, align: 'left' });
+        write(ctx, label, (sx(tr.lo) + sx(tr.hi)) / 2, y - 40, 28, tr.solved ? '#2fa64a' : THEME.ink);
+        write(ctx, `${tr.guesses.length} guess${tr.guesses.length === 1 ? '' : 'es'}`, right, y + 36, 20, THEME.pencil, { align: 'right' });
+        if (tr.secret !== undefined && !tr.solved) write(ctx, `was ${tr.secret}`, left, y + 36, 20, THEME.redInk, { align: 'left' });
+        if (won) celebrateAround(ctx, 14, y - 20, 40, 40, t, seat + 8);
       });
-      text(ctx, '1', left, H - 22, 16, THEME.muted, { black: false });
-      text(ctx, String(max), right, H - 22, 16, THEME.muted, { black: false });
+      write(ctx, '1', left, H - 22, 20, THEME.pencil);
+      write(ctx, String(max), right, H - 22, 20, THEME.pencil);
     },
   };
 }
