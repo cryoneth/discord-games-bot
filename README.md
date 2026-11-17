@@ -6,6 +6,8 @@ Privacy-focused party games that run entirely inside Discord, built to be safe f
 |---|---|---|
 | 🧠 **Trivia** | `/trivia start`: multiple-choice questions answered with buttons, speed bonus, scoreboard | Chat |
 | ⚔️ **Battle royale** | `/royale start`: players join with a button, the bot narrates rounds until one is left | Chat |
+| 🎯 **Last One Standing** | `/laststanding start`: up to 250 players. Each round everyone secretly calls a coin flip, card colour, die, number or trap door. Wrong calls and no-shows are out until one player is left | Chat |
+| 🐑 **Minority Wins** | `/minority start`: up to 250 players vote on a question with no right answer, and only the least popular answer survives. Ties keep everyone in, and the final two share the win | Chat |
 | 🔤 **Word guess** | `/wordguess start`: the channel shares a set of guesses to find a secret five-letter word, entered through a pop-up and checked against a dictionary | Chat |
 | ❌ **Tic-tac-toe** | `/tictactoe @user`: challenge someone and play on a button grid | Chat |
 | 🔴 **Four in a row** | `/fourinarow @user`: drop discs into a 7×6 board until someone connects four | Chat |
@@ -22,6 +24,7 @@ Privacy-focused party games that run entirely inside Discord, built to be safe f
 | 🎨 **Sketch Party** | One player draws a secret word, everyone else guesses. The host sets the game length: a time limit (5–20 min), first to a score (300–1200), or 1–3 rounds, plus 45/60/80 s per drawing | Activity |
 | 🕵️ **Odd One Out** | Everyone gets the same secret word except one player, who gets a similar one and doesn't know it. Players give clues in turn, discuss, then vote. A caught odd one can still steal points by guessing the real word. General and crypto/DeFi word decks | Activity |
 | 🚫 **Forbidden Words** | Two teams. The describer explains a word without five banned words, by voice or typed clues. Teammates guess, and the other team sees the card and buzzes slips. Typed clues are checked automatically. General and crypto/DeFi decks | Activity |
+| 🚦 **Mass Reaction** | Up to 100 players. The pad turns red, then green at a random moment. Tap too early, miss it, or be among the slowest (20/30/50%, host's choice) and you're out. Reaction time is measured on each player's screen, so lag doesn't count | Activity |
 | ⚡ **Quiz Arena** | Live multiple-choice quizzes with speed scoring and streaks. Two built-in crypto/DeFi quizzes, plus an in-app editor (with JSON import/export) so members can write quizzes for their server | Activity |
 | 📈 **Perp Arena** | Trading simulator with play money on a fictional token: long/short with leverage, liquidations, funding, fees, stop-loss/take-profit, a safe lending vault and a risky farm that can get exploited. Scripted market scenarios with news. Ends with a personal debrief of what went right or wrong | Activity |
 

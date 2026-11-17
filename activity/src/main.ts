@@ -4,6 +4,7 @@ import { button, card, el, renderPlayers, waiting, type Ctx, type View } from '.
 import { icon, type IconName } from './icons';
 import { createForbidden } from './games/forbidden';
 import { createMarket } from './games/market';
+import { createMassReaction } from './games/massreaction';
 import { createOddOneOut } from './games/oddoneout';
 import { createQuiz } from './games/quiz';
 import { createSketch } from './games/sketch';
@@ -16,6 +17,7 @@ const FACTORIES: Record<GameId, (ctx: Ctx) => View> = {
   forbidden: createForbidden,
   quiz: createQuiz,
   market: createMarket,
+  massreaction: createMassReaction,
 };
 
 const app = document.getElementById('app')!;
@@ -79,7 +81,7 @@ function notice(...children: Node[]) {
   app.replaceChildren(el('div', { className: 'app' }, el('div', { className: 'stage-center' }, card(...children))));
 }
 
-const GAME_ICONS: Record<GameId, IconName> = { drawing: 'palette', oddoneout: 'magnifier', forbidden: 'ban', quiz: 'bolt', market: 'chart' };
+const GAME_ICONS: Record<GameId, IconName> = { drawing: 'palette', oddoneout: 'magnifier', forbidden: 'ban', quiz: 'bolt', market: 'chart', massreaction: 'target' };
 
 // ── Game picker ────────────────────────────────────────────────────────────
 

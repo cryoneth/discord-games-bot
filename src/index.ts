@@ -5,6 +5,8 @@ import { loadConfig } from './config.js';
 import { handleDots, handleFourInARow, handleGomoku, handleHigherLower, handleMancala, handleNim, handleTicTacToe } from './games/boardgames.js';
 import { handleReaction } from './games/reaction.js';
 import { handleHangman, handleNumberDuel } from './games/secretduels.js';
+import { handleLastStanding } from './games/laststanding.js';
+import { handleMinority } from './games/minority.js';
 import { handleRoyale } from './games/royale.js';
 import { handleRps } from './games/rps.js';
 import { ChannelSessions } from './games/sessions.js';
@@ -33,6 +35,10 @@ async function route(interaction: ChatInputCommandInteraction): Promise<void> {
       return handleTrivia(interaction, { store, sessions });
     case 'royale':
       return handleRoyale(interaction, { store, sessions });
+    case 'laststanding':
+      return handleLastStanding(interaction, { store, sessions });
+    case 'minority':
+      return handleMinority(interaction, { store, sessions });
     case 'wordguess':
       return handleWordguess(interaction, { store, sessions });
     case 'tictactoe':
@@ -73,7 +79,7 @@ async function route(interaction: ChatInputCommandInteraction): Promise<void> {
 
 /** Chat games post and edit messages (with board images) in the channel, not only interaction replies. */
 const CHAT_GAMES = new Set([
-  'trivia', 'royale', 'wordguess', 'tictactoe', 'fourinarow', 'rps', 'dotsandboxes', 'matchsticks',
+  'trivia', 'royale', 'laststanding', 'minority', 'wordguess', 'tictactoe', 'fourinarow', 'rps', 'dotsandboxes', 'matchsticks',
   'fiveinarow', 'mancala', 'higherlower', 'hangman', 'numberduel', 'reaction', 'wouldyourather',
 ]);
 

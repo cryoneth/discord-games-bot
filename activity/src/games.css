@@ -373,3 +373,33 @@ button.end-game[data-armed] { background: var(--bad); color: #fff; }
   .chat-form { margin-top: 4px; }
   .field { padding: 6px 8px; font-size: 16px; }
 }
+
+/* ── Mass Reaction ──────────────────────────────────────────────────────── */
+
+.mr-live { height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; align-items: center; padding: 6px; }
+.mr-pad {
+  width: 100%; max-width: 640px; flex: 1 1 auto; min-height: 220px; max-height: 420px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  border-radius: 24px; color: #fff; touch-action: manipulation; transition: none;
+}
+/* Fixed colours on purpose: red and green must read instantly in any theme. */
+.mr-pad, .mr-pad:hover { filter: none; }
+.mr-pad.ready, .mr-pad.ready:hover { background: #6b7085; }
+.mr-pad.red, .mr-pad.red:hover { background: #d93b4f; }
+.mr-pad.green, .mr-pad.green:hover { background: #22a35a; }
+.mr-pad.early, .mr-pad.early:hover { background: #e58a00; }
+.mr-pad.safe, .mr-pad.safe:hover { background: #2f8f57; }
+.mr-pad.out, .mr-pad.out:hover { background: #8a3a45; }
+.mr-pad.spectating { cursor: default; }
+.mr-pad.spectating .mr-sub { opacity: .85; }
+.mr-pad:not(:disabled):active { transform: none; }
+.mr-big { font-size: clamp(36px, 9vw, 72px); font-weight: 900; line-height: 1; }
+.mr-sub { font-size: 18px; font-weight: 700; opacity: .92; min-height: 1.4em; }
+.mr-results { width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.mr-fast { list-style: none; margin: 0; padding: 0; width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 4px; }
+.mr-fast li { display: flex; justify-content: space-between; gap: 10px; background: var(--panel-2); border-radius: 10px; padding: 6px 12px; font-weight: 700; }
+.mr-fast li.slow { color: var(--bad-text); }
+.mr-fast li.me { outline: 2px solid var(--accent); }
+.mr-fast .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mr-fast .ms { font-variant-numeric: tabular-nums; }
+.app.mass .hint { font-weight: 800; }

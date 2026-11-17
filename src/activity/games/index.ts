@@ -5,6 +5,7 @@ import type { Hub } from '../hub.js';
 import { Room } from '../room.js';
 import { ForbiddenRoom } from './forbidden.js';
 import { MarketRoom } from './market.js';
+import { MassReactionRoom } from './massreaction.js';
 import { OddOneOutRoom } from './oddoneout.js';
 import { QuizRoom } from './quiz.js';
 
@@ -37,6 +38,8 @@ export function gameFactory({ store, onGameEnd }: Deps) {
         return new QuizRoom(ctx, store.quizzes(quizScope(hub)));
       case 'market':
         return new MarketRoom(ctx);
+      case 'massreaction':
+        return new MassReactionRoom(ctx);
     }
   };
 }

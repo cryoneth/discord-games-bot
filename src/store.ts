@@ -23,7 +23,10 @@ export type GameId =
   | 'higherlower'
   | 'hangman'
   | 'numberduel'
-  | 'reaction';
+  | 'reaction'
+  | 'laststanding'
+  | 'minority'
+  | 'massreaction';
 
 export interface QuizRow {
   id: string;

@@ -17,6 +17,8 @@ import { log } from '../util/log.js';
 const GAME_CHOICES: { name: string; value: GameId }[] = [
   { name: 'Trivia', value: 'trivia' },
   { name: 'Battle royale', value: 'royale' },
+  { name: 'Last One Standing', value: 'laststanding' },
+  { name: 'Minority Wins', value: 'minority' },
   { name: 'Drawing', value: 'drawing' },
   { name: 'Word guess', value: 'wordguess' },
   { name: 'Tic-tac-toe', value: 'tictactoe' },
@@ -34,6 +36,7 @@ const GAME_CHOICES: { name: string; value: GameId }[] = [
   { name: 'Forbidden Words', value: 'forbidden' },
   { name: 'Quiz Arena', value: 'quiz' },
   { name: 'Perp Arena', value: 'market' },
+  { name: 'Mass Reaction', value: 'massreaction' },
 ];
 
 export const playCommand = new SlashCommandBuilder()

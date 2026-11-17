@@ -5,7 +5,7 @@
  * Shared by both sides; must stay free of Node/DOM imports.
  */
 
-export type GameId = 'drawing' | 'oddoneout' | 'forbidden' | 'quiz' | 'market';
+export type GameId = 'drawing' | 'oddoneout' | 'forbidden' | 'quiz' | 'market' | 'massreaction';
 
 export interface GameInfo {
   id: GameId;
@@ -22,13 +22,15 @@ export const GAMES: readonly GameInfo[] = [
   { id: 'forbidden', name: 'Forbidden Words', emoji: '🚫', blurb: 'Describe the word to your team without saying any of the banned words.', minPlayers: 4, maxPlayers: 16 },
   { id: 'quiz', name: 'Quiz Arena', emoji: '⚡', blurb: 'Fast live quizzes. Play a built-in one or build your own for the server.', minPlayers: 1, maxPlayers: 16 },
   { id: 'market', name: 'Perp Arena', emoji: '📈', blurb: 'A trading simulator with play money: leverage, funding, liquidations and yield farms.', minPlayers: 1, maxPlayers: 16 },
+  { id: 'massreaction', name: 'Mass Reaction', emoji: '🚦', blurb: 'Tap the moment it turns green. Too early or too slow and you’re out. Built for big crowds.', minPlayers: 2, maxPlayers: 100 },
 ];
 
 export const gameInfo = (id: GameId): GameInfo => GAMES.find((g) => g.id === id)!;
 export const isGameId = (x: unknown): x is GameId => GAMES.some((g) => g.id === x);
 
 export const HUB_LIMITS = {
-  maxPlayers: 16,
+  /** Whole Activity; each game also has its own cap (most are 16). */
+  maxPlayers: 100,
   /** Large enough for a full quiz upload from the editor. */
   maxMessageBytes: 64 * 1024,
 } as const;
