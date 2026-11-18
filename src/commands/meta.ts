@@ -12,7 +12,7 @@ import {
   type AutocompleteInteraction,
 } from 'discord.js';
 import { JUST_FOR_FUN } from '../shared/protocol.js';
-import { MIN_SCORED_PLAYERS, periodRange, type GameId, type Period, type ScoreStore } from '../store.js';
+import { periodRange, type GameId, type Period, type ScoreStore } from '../store.js';
 import { card } from '../ui/card.js';
 import { log } from '../util/log.js';
 
@@ -131,7 +131,7 @@ export async function handleLeaderboard(interaction: ChatInputCommandInteraction
               .join('\n')
           : empty) +
         (mine ? `\n\nYou're **#${mine.rank}**. Keep going!` : ''),
-      footer: `🎈 Just for fun${resets} · games count with ${MIN_SCORED_PLAYERS}+ players`,
+      footer: `🎈 Just for fun${resets}`,
     }),
   );
 }
@@ -147,11 +147,10 @@ export function helpText(): string {
     'Sketch Party · Odd One Out · Forbidden Words · Quiz Arena · Perp Arena · Mass Reaction (up to 100 players)',
     '',
     '**House rules**',
-    '• Anyone can join a game. Only the person who started it (or a server manager) can stop it.',
-    `• Games count for the leaderboard with ${MIN_SCORED_PLAYERS} or more players. Solo games are just practice.`,
-    '• The same two players score at most 5 duels of a game per day, and quiz authors don\'t score on their own quizzes.',
-    '• Anyone can write quizzes in Quiz Arena. Only server managers can delete quizzes or server data.',
-    '• Be kind in clues, quiz questions and chat.',
+    '• Anyone can join a game.',
+    '• Play fair.',
+    '• Anyone can write quizzes.',
+    '• Be kind in clues, quizzes and chat.',
     '',
     '**Game menu** `/menu` to browse every game, how it works and how to start it.',
     '**Leaderboards** `/leaderboard`, with daily, weekly, monthly and all-time boards (days in UTC, weeks start Monday).',

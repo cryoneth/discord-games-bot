@@ -6,7 +6,7 @@ import { EmbedBuilder, type Client } from 'discord.js';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { Config } from '../config.js';
 import { gameInfo, HUB_LIMITS, type ClientMessage, type GameId, type ServerMessage } from '../shared/protocol.js';
-import { MIN_SCORED_PLAYERS, type ScoreStore } from '../store.js';
+import type { ScoreStore } from '../store.js';
 import { log } from '../util/log.js';
 import { TokenBucket } from '../util/ratelimit.js';
 import { gameFactory } from './games/index.js';
@@ -231,7 +231,7 @@ export function startWebServer({ config, store, discord }: Deps) {
                 .join('\n'),
             )
             .setFooter({
-              text: `${counted ? '' : `Practice round: games count for the leaderboard with ${MIN_SCORED_PLAYERS}+ players. `}🎈 All games and leaderboards are just for fun.`,
+              text: `${counted ? '' : 'Practice round: not counted for the leaderboard. '}🎈 All games and leaderboards are just for fun.`,
             }),
         ],
       });

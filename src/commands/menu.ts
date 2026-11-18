@@ -8,7 +8,6 @@ import {
   StringSelectMenuBuilder,
 } from 'discord.js';
 import { JUST_FOR_FUN } from '../shared/protocol.js';
-import { MIN_SCORED_PLAYERS } from '../store.js';
 import { card, nonce } from '../ui/card.js';
 
 export const menuCommand = new SlashCommandBuilder()
@@ -86,10 +85,8 @@ function rulesText(): string {
     '**Leaderboards**',
     '`/leaderboard` shows Today, This week, This month or All time, for all games or one game. Boards show positions, wins and games played.',
     '',
-    '**What counts**',
-    `• Games count with ${MIN_SCORED_PLAYERS} or more players. Solo games are practice.`,
-    '• The same two players count at most 5 duels of a game per day.',
-    '• Quiz authors don’t count on their own quizzes.',
+    '**Fair play**',
+    '• Play fair, and be kind in clues, quizzes and chat.',
     '',
     '**Who can do what**',
     '• Everyone can start and join any game, and write quizzes in Quiz Arena.',
