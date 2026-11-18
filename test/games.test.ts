@@ -142,7 +142,7 @@ test('/menu fits Discord limits and only names commands that exist', async () =>
   const { GUIDE, guideCard } = await import('../src/commands/menu.js');
   const { commands } = await import('../src/commands/index.js');
   const { GAMES } = await import('../src/shared/protocol.js');
-  assert.ok(GUIDE.length <= 25, `${GUIDE.length} dropdown options`);
+  assert.ok(GUIDE.length + 1 <= 25, `${GUIDE.length} dropdown options`);
   assert.equal(new Set(GUIDE.map((g) => g.id)).size, GUIDE.length);
   const names = new Set(commands.map((c) => c.name));
   for (const g of GUIDE) {
