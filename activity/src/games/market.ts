@@ -2,6 +2,7 @@ import {
   liquidationPrice,
   MARKET,
   MARKET_OPTIONS,
+  positionEquity,
   positionPnl,
   SCENARIO_LABELS,
   simClock,
@@ -40,6 +41,11 @@ export function lessons(r: MarketResult): string[] {
   return out;
 }
 
+/** Phone held upright: the trading screen becomes chart + tabs + a sticky Long/Short bar, with the order ticket in a bottom sheet. Keep in sync with games.css. */
+const PHONE = '(max-width: 800px) and (min-height: 501px)';
+
+type Tab = 'pos' | 'board' | 'chat' | 'vaults';
+
 export function createMarket(ctx: Ctx): View {
   let root: HTMLElement;
   let state: MarketStateMessage | null = null;
@@ -48,6 +54,7 @@ export function createMarket(ctx: Ctx): View {
   let news: { i: number; text: string; tone: string }[] = [];
   const timers: number[] = [];
   let resize: ResizeObserver | null = null;
+  const phone = window.matchMedia(PHONE);
 
   // Order ticket selections (kept between renders).
   let side: Side = 'long';
@@ -55,6 +62,11 @@ export function createMarket(ctx: Ctx): View {
   let leverage = 5;
   let stop = 5;
   let take = 0;
+
+  // Phone-only UI state.
+  let tab: Tab = 'pos';
+  let unread = 0;
+  let sheetOpen = false;
 
   // Persistent elements.
   const statusEl = el('div', { className: 'pill' });
@@ -64,19 +76,99 @@ export function createMarket(ctx: Ctx): View {
   const boardEl = el('ol', { className: 'board-list' });
   const canvas = el('canvas', { className: 'chart' });
   const newsEl = el('ul', { className: 'news' });
+  const stripEl = el('div', { className: 'mkt-strip' });
   const accountEl = el('div', { className: 'account' });
   const positionEl = el('div', { className: 'position' });
+  const noPosEl = el('div', { className: 'no-pos' }, el('strong', { textContent: 'No open position' }), el('span', { textContent: 'Tap Long if you think ZETA will rise, Short if you think it will fall.' }));
   const ticketEl = el('div', { className: 'ticket' });
   const vaultsEl = el('div', { className: 'vaults' });
   const closeBtn = button('Close position', () => ctx.send({ t: 'close' }), 'danger wide');
   const chat = new Chat('Trading floor', (text) => ctx.send({ t: 'chat', text: text.slice(0, MAX_CHAT_LENGTH) }));
+  const tradeEl = el('aside', { className: 'panel trade' }, accountEl, positionEl, noPosEl, ticketEl, vaultsEl);
+
+  // Phone tabs under the chart.
+  const tabBtns = new Map<Tab, HTMLButtonElement>();
+  const boardTabLabel = el('span', { textContent: 'Board' });
+  const chatBadge = el('span', { className: 'badge hidden' });
+  const tabLabels: Record<Tab, (Node | string)[]> = { pos: ['Position'], board: [boardTabLabel], chat: ['Chat', chatBadge], vaults: ['Vaults'] };
+  const tabsEl = el(
+    'nav',
+    { className: 'm-tabs' },
+    ...(Object.keys(tabLabels) as Tab[]).map((k) => {
+      const b = el('button', { type: 'button', className: 'm-tab' }, ...tabLabels[k]);
+      b.onclick = () => setTab(k);
+      tabBtns.set(k, b);
+      return b;
+    }),
+  );
+
+  // Phone action bar: Long/Short when flat, live PnL + Close while in a trade.
+  const sideCta = (s: Side) => {
+    const b = el('button', { type: 'button', className: `cta ${s}` }, el('span', { className: 'cta-main', textContent: s === 'long' ? '▲ Long' : '▼ Short' }), el('span', { className: 'cta-sub', textContent: s === 'long' ? 'price goes up' : 'price goes down' }));
+    b.onclick = () => openSheet(s);
+    return b;
+  };
+  const barPos = el('button', { type: 'button', className: 'bar-pos' });
+  barPos.onclick = () => setTab('pos');
+  const barClose = button('Close', () => ctx.send({ t: 'close' }), 'danger bar-close');
+  const actionEl = el('div', { className: 'm-action' }, el('div', { className: 'flat' }, sideCta('long'), sideCta('short')), el('div', { className: 'open' }, barPos, barClose));
+
+  // Phone bottom sheet that holds the order ticket.
+  const sheetBody = el('div', { className: 'sheet-body' });
+  const sheetEl = el(
+    'div',
+    { className: 'sheet', role: 'dialog' },
+    el('div', { className: 'sheet-grab' }),
+    el('div', { className: 'sheet-head' }, el('span', { textContent: `Trade ${MARKET.asset}` }), button('✕', () => closeSheet(), 'icon sheet-x')),
+    sheetBody,
+  );
+  const backdropEl = el('div', { className: 'sheet-backdrop' });
+  backdropEl.onclick = () => closeSheet();
+
   const gameEl = el(
     'main',
     { className: 'market-grid' },
-    el('aside', { className: 'panel leaderboard' }, el('h2', { textContent: 'Leaderboard' }), boardEl, chat.root),
-    el('section', { className: 'panel chart-panel' }, el('div', { className: 'chart-wrap' }, canvas), newsEl),
-    el('aside', { className: 'panel trade' }, accountEl, positionEl, ticketEl, vaultsEl),
+    el('aside', { className: 'panel leaderboard' }, el('div', { className: 'board-sec' }, el('h2', { textContent: 'Leaderboard' }), boardEl), chat.root),
+    el('section', { className: 'panel chart-panel' }, stripEl, el('div', { className: 'chart-wrap' }, canvas), newsEl),
+    tabsEl,
+    tradeEl,
+    actionEl,
   );
+
+  function setTab(t: Tab) {
+    tab = t;
+    gameEl.dataset.tab = t;
+    for (const [k, b] of tabBtns) b.classList.toggle('active', k === t);
+    if (t === 'chat') {
+      unread = 0;
+      chatBadge.classList.add('hidden');
+    }
+  }
+
+  function openSheet(s: Side) {
+    if (tick?.account.position) return;
+    side = s;
+    sheetOpen = true;
+    renderTicket();
+    sheetEl.classList.add('open');
+    backdropEl.classList.add('open');
+  }
+
+  function closeSheet() {
+    sheetOpen = false;
+    sheetEl.classList.remove('open');
+    backdropEl.classList.remove('open');
+  }
+
+  /** The ticket lives in the sidebar on wide screens and in the sheet on phones. */
+  function placeTicket() {
+    if (phone.matches) sheetBody.append(ticketEl);
+    else {
+      tradeEl.insertBefore(ticketEl, vaultsEl);
+      closeSheet();
+    }
+    drawChart();
+  }
 
   // ── Lobby / results ──────────────────────────────────────────────────────
 
@@ -162,8 +254,18 @@ export function createMarket(ctx: Ctx): View {
 
   // ── Trading screen ───────────────────────────────────────────────────────
 
-  const previewEl = el('div', { className: 'preview' });
+  const summaryEl = el('div', { className: 'summary' });
   let openBtn: HTMLButtonElement | null = null;
+
+  /** What the ticket would open right now, at the current price and cash. */
+  function draft() {
+    const price = tick?.price ?? MARKET.startPrice;
+    const cash = tick?.account.cash ?? MARKET.startCash;
+    const margin = (cash * size) / 100 / (1 + leverage * MARKET.takerFee);
+    const qty = (margin * leverage) / price;
+    const liq = liquidationPrice({ side, entry: price, qty, margin, funding: 0 });
+    return { price, margin, notional: margin * leverage, fee: margin * leverage * MARKET.takerFee, liq };
+  }
 
   /** Rebuilds the order ticket controls (only when a selection or the leverage cap changes). */
   function renderTicket() {
@@ -172,15 +274,22 @@ export function createMarket(ctx: Ctx): View {
     if (leverage > max) leverage = max;
     const levs = MARKET.leverages.filter((l) => l <= max);
     const sideBtn = (s: Side) => button(s === 'long' ? '▲ Long' : '▼ Short', () => ((side = s), renderTicket()), `side ${s}${side === s ? ' active' : ''}`);
-    openBtn = button(`Open ${leverage}x ${side}`, () => ctx.send({ t: 'open', side, size, leverage, stop, take }), `primary ${side}`);
+    openBtn = button('', () => {
+      ctx.send({ t: 'open', side, size, leverage, stop, take });
+      closeSheet();
+    }, `primary ${side}`);
     ticketEl.replaceChildren(
       el('h3', { textContent: 'New position' }),
       el('div', { className: 'sides' }, sideBtn('long'), sideBtn('short')),
-      settingRow('Size', chips(MARKET.sizes, size as (typeof MARKET.sizes)[number], (v) => `${v}%`, true, (v) => ((size = v), renderTicket()))),
+      settingRow('Size (share of free cash)', chips(MARKET.sizes, size as (typeof MARKET.sizes)[number], (v) => `${v}%`, true, (v) => ((size = v), renderTicket()))),
       settingRow('Leverage', chips(levs, leverage, (v) => `${v}x`, true, (v) => ((leverage = v), renderTicket()))),
-      settingRow('Stop-loss', chips(MARKET.stops, stop as (typeof MARKET.stops)[number], (v) => (v ? `${v}%` : 'Off'), true, (v) => ((stop = v), renderTicket()))),
-      settingRow('Take profit', chips(MARKET.takes, take as (typeof MARKET.takes)[number], (v) => (v ? `${v}%` : 'Off'), true, (v) => ((take = v), renderTicket()))),
-      previewEl,
+      el(
+        'div',
+        { className: 'tpsl' },
+        settingRow('Stop-loss', chips(MARKET.stops, stop as (typeof MARKET.stops)[number], (v) => (v ? `−${v}%` : 'Off'), true, (v) => ((stop = v), renderTicket()))),
+        settingRow('Take profit', chips(MARKET.takes, take as (typeof MARKET.takes)[number], (v) => (v ? `+${v}%` : 'Off'), true, (v) => ((take = v), renderTicket()))),
+      ),
+      summaryEl,
       openBtn,
     );
     updatePreview();
@@ -188,17 +297,26 @@ export function createMarket(ctx: Ctx): View {
 
   /** Live numbers on the ticket; cheap enough to run every tick. */
   function updatePreview() {
-    const t = tick;
-    const price = t?.price ?? MARKET.startPrice;
-    const cash = t?.account.cash ?? MARKET.startCash;
-    const margin = (cash * size) / 100 / (1 + leverage * MARKET.takerFee);
-    const qty = (margin * leverage) / price;
-    const liq = liquidationPrice({ side, entry: price, qty, margin, funding: 0 });
-    const hasPos = Boolean(t?.account.position);
-    previewEl.replaceChildren(...rich(hasPos
-      ? 'Close your position to open a new one.'
-      : `Margin ${money(margin)} · Size ${money(margin * leverage)} · Liquidation ≈ ${px(liq)} (${pct((liq - price) / price)})${stop && 100 / leverage <= stop ? ' ⚠️ your stop is past liquidation' : ''}`));
-    if (openBtn) openBtn.disabled = hasPos || margin < MARKET.minMargin;
+    const d = draft();
+    const hasPos = Boolean(tick?.account.position);
+    const row = (k: string, v: string, cls = '') => el('div', { className: `sum-row ${cls}` }, el('span', { className: 'k', textContent: k }), el('span', { className: 'v', textContent: v }));
+    const stopPastLiq = stop > 0 && 100 / leverage <= stop;
+    summaryEl.replaceChildren(
+      ...(hasPos
+        ? [el('div', { className: 'sum-note', textContent: 'Close your position to open a new one.' })]
+        : [
+            row('Margin', money(d.margin, 2)),
+            row('Position size', money(d.notional)),
+            row('Liquidation price', `${px(d.liq)} (${pct((d.liq - d.price) / d.price)})`, 'liq'),
+            row('Opening fee', money(d.fee, 2)),
+            ...(stopPastLiq ? [el('div', { className: 'sum-note warn' }, ...rich('⚠️ Your stop-loss is past the liquidation price, so it will never trigger.'))] : []),
+          ]),
+    );
+    if (openBtn) {
+      openBtn.disabled = hasPos || d.margin < MARKET.minMargin;
+      openBtn.replaceChildren(...rich(`${side === 'long' ? 'Long' : 'Short'} ${leverage}x · ${money(d.notional)}`));
+    }
+    if (hasPos && sheetOpen) closeSheet();
   }
 
   function vaultRow(v: Vault, label: string, apr: string, note: string, amount: number, disabled: boolean) {
@@ -224,18 +342,32 @@ export function createMarket(ctx: Ctx): View {
     if (!t) return;
     const a = t.account;
     const pnl = t.equity - MARKET.startCash;
+    const kv = (k: string, v: string) => el('div', {}, el('span', { className: 'k', textContent: k }), el('span', { className: 'v', textContent: v }));
     accountEl.replaceChildren(
-      el('div', { className: 'equity' }, el('span', { className: 'k', textContent: 'Balance' }), el('span', { className: 'v', textContent: money(t.equity, 2) }), el('span', { className: pnl >= 0 ? 'up' : 'down', textContent: pct(pnl / MARKET.startCash) })),
-      el('div', { className: 'cash', textContent: `Free cash ${money(a.cash, 2)}` }),
+      el('div', { className: 'equity' }, el('span', { className: 'k', textContent: 'Balance' }), el('span', { className: 'v', textContent: money(t.equity, 2) }), el('span', { className: `chg ${pnl >= 0 ? 'up' : 'down'}`, textContent: pct(pnl / MARKET.startCash) })),
+      el('div', { className: 'acct-grid' }, kv('Free cash', money(a.cash, 2)), kv('In vaults', money(a.lend + a.farm, 2)), kv('In trade', a.position ? money(Math.max(0, positionEquity(a.position, t.price)), 2) : '–')),
     );
     const p = a.position;
+    noPosEl.classList.toggle('hidden', Boolean(p));
+    actionEl.classList.toggle('has-pos', Boolean(p));
     if (p) {
       const pos = positionPnl(p, t.price) - p.funding;
       const roe = pos / p.margin;
       const dist = Math.abs(t.price - p.liq) / t.price;
+      // Share of the starting cushion still left before liquidation.
+      const cushion = Math.max(0, Math.min(1, dist / Math.max(1e-9, Math.abs(p.entry - p.liq) / p.entry)));
+      const risk = cushion < 0.25 ? 'high' : cushion < 0.5 ? 'mid' : 'low';
+      const tone = pos >= 0 ? 'up' : 'down';
       positionEl.classList.remove('hidden');
       positionEl.replaceChildren(
-        el('div', { className: `pos-head ${p.side}` }, el('span', { textContent: `${p.side === 'long' ? '▲ LONG' : '▼ SHORT'} ${p.leverage}x` }), el('span', { className: pos >= 0 ? 'up' : 'down', textContent: `${money(pos, 2)} (${pct(roe)})` })),
+        el('div', { className: `pos-head ${p.side}` }, el('span', { className: `tag ${p.side}`, textContent: `${p.side === 'long' ? '▲ LONG' : '▼ SHORT'} ${p.leverage}x` }), el('span', { className: 'pos-asset', textContent: MARKET.asset })),
+        el('div', { className: 'pos-pnl' }, el('span', { className: `big ${tone}`, textContent: money(pos, 2) }), el('span', { className: `roe ${tone}`, textContent: `${pct(roe)} on margin` })),
+        el(
+          'div',
+          { className: `liq-meter ${risk}` },
+          el('div', { className: 'liq-label' }, el('span', { textContent: 'Distance to liquidation' }), el('span', { className: 'liq-pct', textContent: `${(dist * 100).toFixed(1)}%` })),
+          el('div', { className: 'liq-bar' }, Object.assign(el('span'), { style: `width:${(cushion * 100).toFixed(1)}%` })),
+        ),
         el(
           'div',
           { className: 'pos-grid' },
@@ -249,6 +381,13 @@ export function createMarket(ctx: Ctx): View {
           ].map(([k, v]) => el('div', {}, el('span', { className: 'k', textContent: k }), el('span', { className: `v${k === 'Liquidation' && dist < 0.02 ? ' danger' : ''}`, textContent: v }))),
         ),
         closeBtn,
+      );
+      barPos.className = `bar-pos ${p.side}`;
+      barPos.replaceChildren(
+        el('span', { className: `tag ${p.side}`, textContent: `${p.side === 'long' ? '▲' : '▼'} ${p.leverage}x` }),
+        el('span', { className: `bar-pnl ${tone}`, textContent: money(pos, 2) }),
+        el('span', { className: `bar-roe ${tone}`, textContent: pct(roe) }),
+        el('span', { className: `bar-liq ${risk}`, textContent: `liq ${px(p.liq)}` }),
       );
     } else {
       positionEl.classList.add('hidden');
@@ -281,10 +420,31 @@ export function createMarket(ctx: Ctx): View {
         ),
       ),
     );
+    const rank = t.board.findIndex((b) => b.id === ctx.me());
+    boardTabLabel.textContent = rank >= 0 && t.board.length > 1 ? `Board #${rank + 1}` : 'Board';
   }
 
   function renderNews() {
     newsEl.replaceChildren(...news.slice(-4).reverse().map((n) => el('li', { className: n.tone }, el('span', { className: 'when', textContent: simClock(n.i) }), ...rich(n.text))));
+  }
+
+  /** Market stats above the chart. */
+  function renderStrip() {
+    const t = tick;
+    if (!t || !prices.length) return;
+    const next = MARKET.fundingEveryTicks - (t.i % MARKET.fundingEveryTicks);
+    const rate = t.fundingRate;
+    const stat = (k: string, v: string, cls = '') => el('div', { className: 'stat' }, el('span', { className: 'k', textContent: k }), el('span', { className: `v ${cls}`, textContent: v }));
+    const change = (t.price - MARKET.startPrice) / MARKET.startPrice;
+    stripEl.replaceChildren(
+      el('div', { className: 'stat main' }, el('span', { className: 'k', textContent: `${MARKET.asset}-PERP` }), el('span', { className: `v ${change >= 0 ? 'up' : 'down'}`, textContent: px(t.price) })),
+      stat('Change', pct(change), change >= 0 ? 'up' : 'down'),
+      stat('High', px(Math.max(...prices))),
+      stat('Low', px(Math.min(...prices))),
+      stat('Funding / 8h', `${rate >= 0 ? '' : '−'}${Math.abs(rate * 100).toFixed(3)}%`, rate > 0 ? 'down' : rate < 0 ? 'up' : ''),
+      stat('Next funding', `${next * MARKET.hoursPerTick}h`),
+      stat('Who pays', rate > 0 ? 'Longs pay' : rate < 0 ? 'Shorts pay' : 'Nobody'),
+    );
   }
 
   function renderTop() {
@@ -419,12 +579,15 @@ export function createMarket(ctx: Ctx): View {
     ctx.setPlaying(running);
     gameEl.classList.toggle('hidden', !running);
     lobbyEl.classList.toggle('hidden', running);
-    if (!running) renderLobby(state);
-    else {
+    if (!running) {
+      closeSheet();
+      renderLobby(state);
+    } else {
       renderTicket();
       renderAccount();
       renderBoard();
       renderNews();
+      renderStrip();
       drawChart();
     }
     renderTop();
@@ -433,9 +596,12 @@ export function createMarket(ctx: Ctx): View {
   return {
     mount(r) {
       root = r;
-      root.replaceChildren(el('div', { className: 'app market' }, el('header', { className: 'topbar' }, topLeft(statusEl), priceEl, timerEl), gameEl, lobbyEl));
+      root.replaceChildren(el('div', { className: 'app market' }, el('header', { className: 'topbar' }, topLeft(statusEl), priceEl, timerEl), gameEl, lobbyEl, backdropEl, sheetEl));
       gameEl.classList.add('hidden');
       lobbyEl.replaceChildren(card(el('h1', { textContent: 'Joining…' })));
+      setTab('pos');
+      placeTicket();
+      phone.addEventListener('change', placeTicket);
       resize = new ResizeObserver(() => drawChart());
       resize.observe(canvas);
       timers.push(window.setInterval(renderTop, 500));
@@ -443,6 +609,7 @@ export function createMarket(ctx: Ctx): View {
     unmount() {
       for (const t of timers) clearInterval(t);
       resize?.disconnect();
+      phone.removeEventListener('change', placeTicket);
     },
     onMessage(m) {
       switch (m.t) {
@@ -454,12 +621,16 @@ export function createMarket(ctx: Ctx): View {
             news = [];
             tick = null;
             lastVaultKey = '';
+            unread = 0;
+            chatBadge.classList.add('hidden');
+            setTab('pos');
           }
           render();
           break;
         }
         case 'history':
           prices = m.prices as number[];
+          renderStrip();
           drawChart();
           break;
         case 'tick': {
@@ -470,6 +641,7 @@ export function createMarket(ctx: Ctx): View {
           renderAccount();
           renderBoard();
           renderTop();
+          renderStrip();
           drawChart();
           updatePreview();
           break;
@@ -480,6 +652,11 @@ export function createMarket(ctx: Ctx): View {
           break;
         case 'chat':
           chat.add(m.kind, m.text, m.name);
+          if (phone.matches && tab !== 'chat' && m.kind !== 'system') {
+            unread++;
+            chatBadge.textContent = unread > 9 ? '9+' : String(unread);
+            chatBadge.classList.remove('hidden');
+          }
           break;
       }
     },
