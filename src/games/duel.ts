@@ -45,6 +45,42 @@ export interface DuelGame {
   play(message: Message, players: [string, string]): Promise<Played | null>;
 }
 
+/** A duel that is running (or waiting for its challenge to be accepted), so moderators can stop it. */
+export interface RunningDuel {
+  guildId: string | null;
+  channelId: string;
+  title: string;
+  players: [string, string];
+  stop(): void;
+}
+export const runningDuels = new Set<RunningDuel>();
+
+/**
+ * Wraps the duel's message so every button collector made on it ends (reason `aborted`)
+ * when `signal` fires. Games keep using it like a normal message.
+ */
+function abortable(message: Message, signal: AbortSignal): Message {
+  return new Proxy(message, {
+    get(target, prop) {
+      if (prop === 'createMessageComponentCollector') {
+        return (...args: Parameters<Message['createMessageComponentCollector']>) => {
+          const collector = target.createMessageComponentCollector(...args);
+          const stop = () => collector.stop('aborted');
+          // Deferred: the caller attaches its 'end' listener right after creating the collector.
+          if (signal.aborted) setImmediate(stop);
+          else {
+            signal.addEventListener('abort', stop, { once: true });
+            collector.once('end', () => signal.removeEventListener('abort', stop));
+          }
+          return collector;
+        };
+      }
+      const value = Reflect.get(target, prop, target) as unknown;
+      return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+    },
+  });
+}
+
 /** Slash-command entry point: challenge → play → offer rematches until declined. */
 export async function runDuel(interaction: ChatInputCommandInteraction, game: DuelGame, store: ScoreStore): Promise<void> {
   const challenger = interaction.user;
@@ -60,46 +96,62 @@ export async function runDuel(interaction: ChatInputCommandInteraction, game: Du
   players.forEach((id) => busy.add(id));
   const release = () => players.forEach((id) => busy.delete(id));
 
-  let message: Message;
+  const abort = new AbortController();
+  const entry: RunningDuel = { guildId: interaction.guildId, channelId: interaction.channelId, title: game.title, players, stop: () => abort.abort() };
+  runningDuels.add(entry);
+  const stopped = (message: Message) =>
+    message.edit(card({ color: GREY, title: game.title, body: `<@${players[0]}> vs <@${players[1]}>\n🛑 This game was stopped by a moderator. Nothing was scored.` })).catch(() => {});
+
   try {
-    const accepted = await challenge(interaction, game, players);
-    if (!accepted) return release();
-    message = accepted;
-  } catch (err) {
-    release();
-    throw err;
-  }
-
-  // Each loop iteration is one game; a rematch posts a fresh message.
-  for (;;) {
-    let played: Played | null;
+    let message: Message;
     try {
-      played = await game.play(message, players);
-    } finally {
-      release();
-    }
-    if (!played) return;
-    recordDuel(store, interaction.guildId, game.id, played.players, played.ending);
-
-    const next = await offerRematch(message, played, players);
-    if (!next) return;
-    if (players.some((id) => busy.has(id))) {
-      await next.reply({ content: 'One of you already started another game.', flags: MessageFlags.Ephemeral }).catch(() => {});
-      return;
-    }
-    players.forEach((id) => busy.add(id));
-    try {
-      const reply = await next.reply({ ...card({ color: game.color, title: game.title, body: 'Rematch! Setting up the board…' }), withResponse: true });
-      if (!reply.resource?.message) throw new Error('Rematch message missing');
-      message = reply.resource.message;
+      const accepted = await challenge(interaction, game, players, abort.signal);
+      if (!accepted) return release();
+      message = accepted;
     } catch (err) {
       release();
       throw err;
     }
+
+    // Each loop iteration is one game; a rematch posts a fresh message.
+    for (;;) {
+      let played: Played | null;
+      try {
+        played = await game.play(abortable(message, abort.signal), players);
+      } finally {
+        release();
+      }
+      if (abort.signal.aborted) return void (await stopped(message));
+      if (!played) return;
+      recordDuel(store, interaction.guildId, game.id, played.players, played.ending);
+
+      const next = await offerRematch(abortable(message, abort.signal), played, players);
+      if (!next || abort.signal.aborted) return;
+      if (players.some((id) => busy.has(id))) {
+        await next.reply({ content: 'One of you already started another game.', flags: MessageFlags.Ephemeral }).catch(() => {});
+        return;
+      }
+      players.forEach((id) => busy.add(id));
+      try {
+        const reply = await next.reply({ ...card({ color: game.color, title: game.title, body: 'Rematch! Setting up the board…' }), withResponse: true });
+        if (!reply.resource?.message) throw new Error('Rematch message missing');
+        message = reply.resource.message;
+      } catch (err) {
+        release();
+        throw err;
+      }
+    }
+  } finally {
+    runningDuels.delete(entry);
   }
 }
 
-async function challenge(interaction: ChatInputCommandInteraction, game: DuelGame, [challengerId, opponentId]: [string, string]): Promise<Message | null> {
+async function challenge(
+  interaction: ChatInputCommandInteraction,
+  game: DuelGame,
+  [challengerId, opponentId]: [string, string],
+  signal: AbortSignal,
+): Promise<Message | null> {
   const id = `duel:${nonce()}`;
   const expires = Math.floor(Date.now() / 1000) + CHALLENGE_SECONDS;
   const reply = await interaction.reply({
@@ -116,11 +168,12 @@ async function challenge(interaction: ChatInputCommandInteraction, game: DuelGam
     }),
     withResponse: true,
   });
-  const message = reply.resource?.message;
-  if (!message) throw new Error('Challenge message missing from interaction response');
+  const sent = reply.resource?.message;
+  if (!sent) throw new Error('Challenge message missing from interaction response');
+  const message = abortable(sent, signal);
 
   let acceptBtn: ButtonInteraction | null = null;
-  const outcome = await new Promise<'accept' | 'decline' | 'cancel' | 'timeout'>((resolve) => {
+  const outcome = await new Promise<'accept' | 'decline' | 'cancel' | 'timeout' | 'stopped'>((resolve) => {
     const collector = message.createMessageComponentCollector({ componentType: ComponentType.Button, time: CHALLENGE_SECONDS * 1000 });
     collector.on('collect', async (btn) => {
       if (!btn.customId.startsWith(`${id}:`)) return;
@@ -138,19 +191,20 @@ async function challenge(interaction: ChatInputCommandInteraction, game: DuelGam
         await btn.reply({ content: "This challenge isn't for you.", flags: MessageFlags.Ephemeral }).catch(() => {});
       }
     });
-    collector.once('end', () => resolve('timeout'));
+    collector.once('end', (_c, reason) => resolve(reason === 'aborted' ? 'stopped' : 'timeout'));
   });
 
   if (outcome === 'accept' && acceptBtn) {
     // Acknowledge instantly so the click feels responsive; the game renders next.
     await (acceptBtn as ButtonInteraction).update(card({ color: game.color, title: game.title, body: 'Challenge accepted! Setting up the board…' })).catch(() => {});
-    return message;
+    return sent;
   }
   const text = {
     accept: '',
     decline: `<@${opponentId}> declined the challenge.`,
     cancel: `<@${challengerId}> withdrew the challenge.`,
     timeout: `<@${opponentId}> didn't respond in time.`,
+    stopped: '🛑 This challenge was cancelled by a moderator.',
   }[outcome];
   await message.edit(card({ color: GREY, title: game.title, body: text })).catch(() => {});
   return null;

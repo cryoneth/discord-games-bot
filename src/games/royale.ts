@@ -47,7 +47,7 @@ export async function handleRoyale(interaction: ChatInputCommandInteraction, dep
   const hostId = interaction.user.id;
   const joinSeconds = interaction.options.getInteger('join_seconds') ?? 60;
   const abort = new AbortController();
-  if (!deps.sessions.start(interaction.channelId, { game: 'royale', ownerId: hostId, stop: () => abort.abort() })) {
+  if (!deps.sessions.start(interaction.channelId, { game: 'royale', guildId: interaction.guildId, ownerId: hostId, stop: () => abort.abort() })) {
     await interaction.reply({ content: 'A game is already running in this channel.', flags: MessageFlags.Ephemeral });
     return;
   }

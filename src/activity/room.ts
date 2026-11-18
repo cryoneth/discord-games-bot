@@ -248,6 +248,10 @@ export class Room {
     }
   }
 
+  refresh(): void {
+    this.broadcastState();
+  }
+
   dispose(): void {
     this.clearTimers();
     this.clearGameTimer();

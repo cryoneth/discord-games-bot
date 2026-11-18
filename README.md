@@ -53,13 +53,17 @@ These rules keep the boards fair:
 | Action | Who |
 |---|---|
 | Start and play any game, `/menu`, `/help`, `/leaderboard`, `/privacy` | Everyone |
-| Stop a running chat game | The person who started it, or anyone with **Manage Server** |
-| End an Activity game early, switch games | The Activity host (the first person who joined) |
+| Stop a running chat game | The person who started it, or a moderator |
+| End an Activity game early, switch games | The Activity host (the first person who joined), or a moderator |
+| `/mod games` (see every running game), `/mod stop` (stop everything in a channel, including a voice channel Activity), `/mod stop-all` | Moderators |
+| **Take control** of an Activity (become its host) or **Stop game** from inside it | Moderators |
 | `/server-data quizzes`: see every custom quiz and its author | **Manage Server** only (hidden from everyone else) |
 | Write and edit your own quizzes in Quiz Arena | Everyone |
 | `/server-data delete-quiz`: delete a custom quiz (members can't delete quizzes, not even their own) | **Manage Server** only |
 | `/server-data wipe`: delete all of the server's scores and quizzes | **Manage Server** only, with a confirm button |
 | Delete or stop recording **your own** scores (`/privacy forget-me`, `/privacy opt-out`) | Each member, for themselves only. Kept because privacy laws such as GDPR give people the right to erase their own data |
+
+**Moderators** are members with **Manage Server**, plus anyone with a role listed in `MOD_ROLE_IDS` in `.env` (comma-separated role IDs; right-click a role → Copy Role ID). Moderator controls in an Activity need `VERIFY_ACTIVITY_INSTANCE=true` (the default), because that is how the bot learns which server an Activity is in.
 
 Nobody can delete or change another member's scores, and members can't wipe the server's data. The bot never pings anyone, can't read messages, and every game is limited to one per channel (one duel per person) with a 2-second cooldown between commands.
 
@@ -188,7 +192,7 @@ src/
   render/             board images and confetti GIFs (@napi-rs/canvas + gifenc)
   ui/card.ts          Components V2 message cards shared by every game
   games/              all chat games, duel/turn helpers, pure rules (logic.ts), session lock, content
-  commands/           /play, /draw, /menu, /help, /leaderboard, /privacy, /server-data
+  commands/           /play, /draw, /menu, /help, /leaderboard, /privacy, /server-data, /mod
   activity/server.ts  HTTP + WebSocket server for the Activity (auth, rate limits)
   activity/hub.ts     one per Activity instance: players, host, game picker, message envelope
   activity/base.ts    shared room plumbing for Activity games (seats, host, chat, timers)

@@ -9,6 +9,8 @@ export interface HubConn {
 interface Member {
   id: string;
   name: string;
+  /** Server moderator: may stop the game or take over as host at any time. */
+  mod: boolean;
   conns: Set<HubConn>;
 }
 
@@ -49,20 +51,22 @@ export class Hub {
   }
 
   /** Returns false if the activity is full. */
-  join(user: { id: string; name: string }, raw: HubConn): boolean {
+  join(user: { id: string; name: string; mod?: boolean }, raw: HubConn): boolean {
     let member = this.members.get(user.id);
     if (!member) {
-      if (this.members.size >= HUB_LIMITS.maxPlayers) return false;
-      member = { id: user.id, name: user.name, conns: new Set() };
+      // Moderators can always get in, so they can deal with a full activity.
+      if (this.members.size >= HUB_LIMITS.maxPlayers && !user.mod) return false;
+      member = { id: user.id, name: user.name, mod: false, conns: new Set() };
       this.members.set(user.id, member);
       this.order.push(user.id);
     }
     member.name = user.name;
+    member.mod = user.mod ?? false;
     member.conns.add(raw);
     this.touched = Date.now();
-    raw.send({ t: 'welcome', you: user.id });
+    raw.send({ t: 'welcome', you: user.id, mod: member.mod });
     this.broadcastHub();
-    if (this.room && !this.room.join(user, this.wrap(raw))) {
+    if (this.room && !this.room.join({ id: user.id, name: user.name }, this.wrap(raw))) {
       raw.send({ t: 'g', m: { t: 'chat', kind: 'private', text: 'This game is full. You can watch the next one.' } });
     }
     return true;
@@ -84,25 +88,42 @@ export class Hub {
   }
 
   handle(userId: string, msg: ClientMessage): void {
-    if (!this.members.has(userId)) return;
+    const member = this.members.get(userId);
+    if (!member) return;
     this.touched = Date.now();
     switch (msg.t) {
       case 'choose':
         if (!isGameId(msg.game) || !this.canSwitch(userId)) return;
         return this.switchTo(msg.game);
       case 'menu':
-        if (!this.room || !this.canSwitch(userId)) return;
-        this.room.dispose();
-        this.room = null;
-        this.game = null;
-        this.wrapped.clear();
+        if (!this.room) return;
+        // Moderators may also stop a game that is in progress.
+        if (this.canSwitch(userId)) return this.toMenu(null);
+        if (member.mod) return this.toMenu(`${member.name} (moderator) stopped the game.`);
+        return;
+      case 'takeover':
+        if (!member.mod || this.hostId() === userId) return;
+        this.order = [userId, ...this.order.filter((id) => id !== userId)];
         this.broadcastHub();
+        this.room?.refresh?.();
+        this.notice(`${member.name} (moderator) is now the host.`);
         return;
       case 'g':
         if (!msg.m || typeof msg.m !== 'object' || typeof msg.m.t !== 'string') return;
         this.room?.handle(userId, msg.m);
         return;
     }
+  }
+
+  /** Moderator stop from Discord (`/mod stop`): back to the game picker, nothing scored. */
+  forceStop(text: string): void {
+    this.toMenu(text);
+  }
+
+  /** Who is here, for `/mod games`. */
+  summary(): { game: GameId | null; host: string | null; online: number } {
+    const host = this.hostId();
+    return { game: this.game, host, online: this.connectedCount };
   }
 
   dispose(): void {
@@ -113,7 +134,25 @@ export class Hub {
   }
 
   private canSwitch(userId: string): boolean {
-    return this.hostId() === userId && (!this.room || this.room.idle);
+    const allowed = this.hostId() === userId || (this.members.get(userId)?.mod ?? false);
+    return allowed && (!this.room || this.room.idle);
+  }
+
+  private toMenu(notice: string | null): void {
+    this.room?.dispose();
+    this.room = null;
+    this.game = null;
+    this.wrapped.clear();
+    // Members who left mid-game were kept for reconnects; between games they go.
+    for (const [id, m] of this.members) if (m.conns.size === 0) this.members.delete(id);
+    this.order = this.order.filter((id) => this.members.has(id));
+    this.broadcastHub();
+    if (notice) this.notice(notice);
+  }
+
+  private notice(text: string): void {
+    const msg: ServerMessage = { t: 'notice', text };
+    for (const m of this.members.values()) for (const c of m.conns) c.send(msg);
   }
 
   private switchTo(game: GameId): void {

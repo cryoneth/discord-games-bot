@@ -46,13 +46,17 @@ export type ClientMessage =
   | { t: 'hello'; accessToken: string; instanceId: string }
   /** Host: switch to a game (only between games). */
   | { t: 'choose'; game: GameId }
-  /** Host: back to the game picker (only between games). */
+  /** Host: back to the game picker (only between games). Moderators: also stops a running game. */
   | { t: 'menu' }
+  /** Moderator: become the host. */
+  | { t: 'takeover' }
   /** A message for the current game. */
   | { t: 'g'; m: { t: string } & Record<string, unknown> };
 
 export type ServerMessage =
-  | { t: 'welcome'; you: string }
+  | { t: 'welcome'; you: string; mod?: boolean }
+  /** A short announcement from the hub (e.g. a moderator stopped the game). */
+  | { t: 'notice'; text: string }
   | { t: 'hub'; game: GameId | null; players: HubPlayer[]; now: number }
   | { t: 'g'; m: { t: string } & Record<string, unknown> }
   | { t: 'error'; text: string; fatal?: boolean };

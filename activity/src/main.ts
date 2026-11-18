@@ -23,6 +23,8 @@ const FACTORIES: Record<GameId, (ctx: Ctx) => View> = {
 const app = document.getElementById('app')!;
 
 let me = '';
+/** Server moderator: can stop the game or take over as host. */
+let amMod = false;
 let ws: WebSocket | null = null;
 let accessToken = '';
 let instanceId = '';
@@ -49,12 +51,39 @@ endButton.onclick = () => {
     }, 3000);
   }
 };
+/** Moderator controls over a game someone else is hosting: take over as host, or stop it. */
+const takeoverButton = el('button', { type: 'button', className: 'end-game mod-btn', title: 'Take control (moderator)' }, icon('crown'), el('span', { className: 'lbl', textContent: ' Take control' }));
+takeoverButton.onclick = () => send({ t: 'takeover' });
+const stopLabel = el('span', { className: 'lbl', textContent: ' Stop game' });
+const stopButton = el('button', { type: 'button', className: 'end-game mod-btn', title: 'Stop game (moderator)' }, icon('stop'), stopLabel);
+stopButton.onclick = () => {
+  if (stopButton.dataset.armed) send({ t: 'menu' });
+  else {
+    stopButton.dataset.armed = '1';
+    stopLabel.textContent = ' Tap again to stop';
+    setTimeout(() => {
+      delete stopButton.dataset.armed;
+      stopLabel.textContent = ' Stop game';
+    }, 3000);
+  }
+};
+
 const syncEndButton = () => {
-  endButton.classList.toggle('hidden', !(playing && game && isHost()));
+  const host = isHost();
+  endButton.classList.toggle('hidden', !(playing && game && host));
+  takeoverButton.classList.toggle('hidden', !(game && amMod && !host));
+  stopButton.classList.toggle('hidden', !(game && amMod && !host));
   // Lives in the current screen's top bar so it never covers game content.
   const slot = app.querySelector('.end-slot');
-  if (slot && endButton.parentElement !== slot) slot.append(endButton);
+  for (const b of [endButton, takeoverButton, stopButton]) if (slot && b.parentElement !== slot) slot.append(b);
 };
+
+/** Brief message over everything (e.g. a moderator stopped the game). */
+function toast(text: string) {
+  const t = el('div', { className: 'toast', role: 'status', textContent: text });
+  document.body.append(t);
+  setTimeout(() => t.remove(), 4000);
+}
 
 const send = (msg: ClientMessage) => {
   if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
@@ -67,7 +96,7 @@ const ctx: Ctx = {
   send: (m) => send({ t: 'g', m }),
   now: () => Date.now() + clockOffset,
   setClock: (serverNow) => (clockOffset = serverNow - Date.now()),
-  menuButton: () => (isHost() ? button('← All games', () => send({ t: 'menu' }), 'link menu-link') : null),
+  menuButton: () => (isHost() || amMod ? button('← All games', () => send({ t: 'menu' }), 'link menu-link') : null),
   setPlaying: (p) => {
     playing = p;
     syncEndButton();
@@ -91,6 +120,7 @@ function renderPicker() {
   const list = el('ol', { className: 'plist' });
   renderPlayers(list, players, me, false);
   const amHost = isHost();
+  const canPick = amHost || amMod;
   const grid = el(
     'div',
     { className: 'game-grid' },
@@ -98,13 +128,13 @@ function renderPicker() {
       const tooFew = online < g.minPlayers;
       const b = el(
         'button',
-        { type: 'button', className: 'game-tile', disabled: !amHost },
+        { type: 'button', className: 'game-tile', disabled: !canPick },
         el('span', { className: 'tile-emoji' }, icon(GAME_ICONS[g.id])),
         el('span', { className: 'tile-name', textContent: g.name }),
         el('span', { className: 'tile-blurb', textContent: g.blurb }),
         el('span', { className: `tile-players${tooFew ? ' short' : ''}`, textContent: g.minPlayers === 1 ? `1–${g.maxPlayers} players` : `${g.minPlayers}–${g.maxPlayers} players` }),
       );
-      if (amHost) b.onclick = () => send({ t: 'choose', game: g.id });
+      if (canPick) b.onclick = () => send({ t: 'choose', game: g.id });
       return b;
     }),
   );
@@ -117,6 +147,7 @@ function renderPicker() {
         { className: 'picker-head' },
         el('h1', {}, icon('party'), ' Game Night'),
         el('p', { className: 'sub', textContent: amHost ? 'You’re the host. Pick a game for everyone.' : '' }, !amHost ? waiting(`${host?.name ?? 'The host'} is picking a game…`) : ''),
+        amMod && !amHost ? el('p', { className: 'sub' }, button('Take control (moderator)', () => send({ t: 'takeover' }), 'link')) : '',
       ),
       el('main', { className: 'picker-body' }, grid, el('aside', { className: 'panel players' }, el('h2', { textContent: `Here now · ${online}` }), list)),
       el('footer', { className: 'fun-note', textContent: JUST_FOR_FUN }),
@@ -149,6 +180,10 @@ function onMessage(msg: ServerMessage) {
   switch (msg.t) {
     case 'welcome':
       me = msg.you;
+      amMod = msg.mod ?? false;
+      break;
+    case 'notice':
+      toast(msg.text);
       break;
     case 'hub':
       clockOffset = msg.now - Date.now();

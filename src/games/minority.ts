@@ -42,7 +42,7 @@ export async function handleMinority(interaction: ChatInputCommandInteraction, d
     return;
   }
   const abort = new AbortController();
-  if (!deps.sessions.start(interaction.channelId, { game: 'minority', ownerId: interaction.user.id, stop: () => abort.abort() })) {
+  if (!deps.sessions.start(interaction.channelId, { game: 'minority', guildId: interaction.guildId, ownerId: interaction.user.id, stop: () => abort.abort() })) {
     await interaction.reply({ content: 'A game is already running in this channel.', flags: MessageFlags.Ephemeral });
     return;
   }

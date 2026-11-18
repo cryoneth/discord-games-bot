@@ -1,5 +1,6 @@
 export interface ActiveGame {
   game: string;
+  guildId: string | null;
   ownerId: string;
   stop: () => void;
 }
@@ -20,6 +21,11 @@ export class ChannelSessions {
 
   end(channelId: string): void {
     this.active.delete(channelId);
+  }
+
+  /** Every running chat game in a server, by channel. */
+  inGuild(guildId: string): [channelId: string, game: ActiveGame][] {
+    return [...this.active].filter(([, g]) => g.guildId === guildId);
   }
 
   stopAll(): void {

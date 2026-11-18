@@ -10,6 +10,8 @@ export interface Config {
   verifyActivityInstance: boolean;
   trustProxy: boolean;
   frameAncestors: string;
+  /** Members with any of these roles (or Manage Server) can stop and take over any game. */
+  modRoleIds: string[];
 }
 
 function required(name: string): string {
@@ -45,5 +47,13 @@ export function loadConfig(): Config {
     frameAncestors:
       process.env.FRAME_ANCESTORS?.trim() ||
       "'self' https://discord.com https://*.discord.com https://*.discordsays.com https://discordapp.com https://*.discordapp.com",
+    modRoleIds: (process.env.MOD_ROLE_IDS ?? '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => {
+        if (!id) return false;
+        if (!/^\d{15,25}$/.test(id)) throw new Error(`MOD_ROLE_IDS: "${id}" is not a role ID`);
+        return true;
+      }),
   };
 }

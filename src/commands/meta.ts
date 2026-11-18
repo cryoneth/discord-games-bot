@@ -155,6 +155,7 @@ export function helpText(): string {
     '**Game menu** `/menu` to browse every game, how it works and how to start it.',
     '**Leaderboards** `/leaderboard`, with daily, weekly, monthly and all-time boards (days in UTC, weeks start Monday).',
     '**Your data** `/privacy` to see, delete or stop recording your scores.',
+    '**Moderators** `/mod games` to see what\'s running · `/mod stop` · `/mod stop-all`.',
     '',
     `🎈 ${JUST_FOR_FUN}`,
   ].join('\n');

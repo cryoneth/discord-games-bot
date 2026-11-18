@@ -18,6 +18,8 @@ export interface GameRoom {
   join(user: { id: string; name: string }, conn: Conn): boolean;
   leave(userId: string, conn: Conn): void;
   handle(userId: string, msg: { t: string } & Record<string, unknown>): void;
+  /** Re-send everyone's state (e.g. the host changed). */
+  refresh?(): void;
   dispose(): void;
 }
 
@@ -157,6 +159,10 @@ export abstract class BaseRoom<S extends Seat = Seat> implements GameRoom {
       default:
         return this.onMessage(seat, msg);
     }
+  }
+
+  refresh(): void {
+    this.broadcastState();
   }
 
   dispose(): void {

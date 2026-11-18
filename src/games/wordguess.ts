@@ -74,7 +74,7 @@ async function runWordGuess(trigger: ChatInputCommandInteraction | ButtonInterac
   const { maxGuesses } = ctx;
   const answer = pick(ANSWERS);
   const abort = new AbortController();
-  if (!deps.sessions.start(ctx.channelId, { game: 'wordguess', ownerId: ctx.hostId, stop: () => abort.abort() })) {
+  if (!deps.sessions.start(ctx.channelId, { game: 'wordguess', guildId: ctx.guildId, ownerId: ctx.hostId, stop: () => abort.abort() })) {
     await trigger.reply({ content: 'A game is already running in this channel.', flags: MessageFlags.Ephemeral });
     return;
   }

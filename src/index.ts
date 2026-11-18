@@ -2,6 +2,7 @@ import { Client, Events, GatewayIntentBits, MessageFlags, PermissionFlagsBits, t
 import { startWebServer } from './activity/server.js';
 import { handleAutocomplete, handleHelp, handleLaunch, handleLeaderboard, handlePrivacy, handleServerData } from './commands/meta.js';
 import { handleMenu } from './commands/menu.js';
+import { handleMod } from './commands/mod.js';
 import { loadConfig } from './config.js';
 import { handleDots, handleFourInARow, handleGomoku, handleHigherLower, handleMancala, handleNim, handleTicTacToe } from './games/boardgames.js';
 import { handleReaction } from './games/reaction.js';
@@ -14,11 +15,13 @@ import { ChannelSessions } from './games/sessions.js';
 import { handleTrivia } from './games/trivia.js';
 import { handleWordguess } from './games/wordguess.js';
 import { handleWouldYouRather } from './games/wyr.js';
+import { setModRoles } from './moderation.js';
 import { ScoreStore } from './store.js';
 import { log } from './util/log.js';
 import { Cooldown } from './util/ratelimit.js';
 
 const config = loadConfig();
+setModRoles(config.modRoleIds);
 const store = new ScoreStore(config.dataDir);
 const sessions = new ChannelSessions();
 const commandCooldown = new Cooldown(2000);
@@ -79,6 +82,8 @@ async function route(interaction: ChatInputCommandInteraction): Promise<void> {
       return handlePrivacy(interaction, store, config.retentionDays);
     case 'server-data':
       return handleServerData(interaction, store);
+    case 'mod':
+      return handleMod(interaction, { sessions, web });
   }
 }
 

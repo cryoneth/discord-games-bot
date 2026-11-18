@@ -5,7 +5,6 @@ import {
   ComponentType,
   InteractionContextType,
   MessageFlags,
-  PermissionFlagsBits,
   SlashCommandBuilder,
 } from 'discord.js';
 import { bannerScene } from '../render/boards.js';
@@ -13,6 +12,7 @@ import type { ScoreStore } from '../store.js';
 import { card, ROW, sceneImage } from '../ui/card.js';
 import { pick, shuffle, sleep } from '../util/random.js';
 import { CATEGORY_LABELS, TRIVIA, type TriviaCategory } from './data/trivia.js';
+import { isModerator } from '../moderation.js';
 import type { ChannelSessions } from './sessions.js';
 
 const LETTERS = ['A', 'B', 'C', 'D'] as const;
@@ -61,6 +61,7 @@ export async function handleTrivia(interaction: ChatInputCommandInteraction, dep
   const abort = new AbortController();
   const started = deps.sessions.start(interaction.channelId, {
     game: 'trivia',
+    guildId: interaction.guildId,
     ownerId: interaction.user.id,
     stop: () => abort.abort(),
   });
@@ -217,16 +218,15 @@ export async function handleTrivia(interaction: ChatInputCommandInteraction, dep
   }
 }
 
-/** Shared `/<game> stop`: the host or anyone with Manage Server can stop it. */
+/** Shared `/<game> stop`: the host or a moderator (Manage Server or a mod role) can stop it. */
 export async function stopGame(interaction: ChatInputCommandInteraction, deps: Deps, game: string): Promise<void> {
   const active = deps.sessions.get(interaction.channelId);
   if (!active || active.game !== game) {
     await interaction.reply({ content: `There is no ${game} game running in this channel.`, flags: MessageFlags.Ephemeral });
     return;
   }
-  const isAdmin = interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ?? false;
-  if (active.ownerId !== interaction.user.id && !isAdmin) {
-    await interaction.reply({ content: 'Only the person who started the game (or a server manager) can stop it.', flags: MessageFlags.Ephemeral });
+  if (active.ownerId !== interaction.user.id && !isModerator(interaction)) {
+    await interaction.reply({ content: 'Only the person who started the game (or a moderator) can stop it.', flags: MessageFlags.Ephemeral });
     return;
   }
   active.stop();

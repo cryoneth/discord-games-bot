@@ -284,6 +284,10 @@ button.end-game[data-armed] { background: var(--bad); color: #fff; }
 
 .top-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .end-slot:empty { display: none; }
+.end-slot { display: flex; gap: 6px; }
+button.mod-btn { color: var(--warn); }
+
+.toast { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); z-index: 20; max-width: calc(100vw - 32px); background: var(--panel-2); color: var(--text); border: 1px solid rgb(255 255 255 / .15); border-radius: 10px; padding: 10px 16px; font-weight: 600; box-shadow: 0 6px 24px rgb(0 0 0 / .4); pointer-events: none; }
 
 /* ── Phones ─────────────────────────────────────────────────────────────── */
 @media (max-width: 800px) {

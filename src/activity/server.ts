@@ -7,6 +7,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import type { Config } from '../config.js';
 import { gameInfo, HUB_LIMITS, type ClientMessage, type GameId, type ServerMessage } from '../shared/protocol.js';
 import type { ScoreStore } from '../store.js';
+import { isModeratorInGuild } from '../moderation.js';
 import { log } from '../util/log.js';
 import { TokenBucket } from '../util/ratelimit.js';
 import { gameFactory } from './games/index.js';
@@ -245,6 +246,7 @@ export function startWebServer({ config, store, discord }: Deps) {
     name: string;
     guildId: string | null;
     channelId: string | null;
+    mod: boolean;
   }
 
   const authenticate = async (accessToken: string, instanceId: string): Promise<Identity> => {
@@ -262,7 +264,9 @@ export function startWebServer({ config, store, discord }: Deps) {
       channelId = inst.location?.channel_id ?? null;
     }
     const name = cleanText(user.global_name || user.username, 32) || 'Player';
-    return { id: user.id, name, guildId, channelId };
+    // The server is only known from the verified instance, so moderators need VERIFY_ACTIVITY_INSTANCE on.
+    const mod = guildId ? await isModeratorInGuild(discord, guildId, user.id) : false;
+    return { id: user.id, name, guildId, channelId, mod };
   };
 
   wss.on('connection', (ws: WebSocket) => {
@@ -325,7 +329,7 @@ export function startWebServer({ config, store, discord }: Deps) {
           rooms.set(msg.instanceId, room);
         }
         if (userConnCount(identity.id) >= MAX_CONNS_PER_USER) return fail('Too many open sessions.');
-        if (!room.join({ id: identity.id, name: identity.name }, conn)) return fail('This activity is full.');
+        if (!room.join({ id: identity.id, name: identity.name, mod: identity.mod }, conn)) return fail('This activity is full.');
         connsByUser.set(identity.id, userConnCount(identity.id) + 1);
         return;
       }
@@ -372,6 +376,19 @@ export function startWebServer({ config, store, discord }: Deps) {
   server.listen(config.port, config.host, () => log.info(`Web server listening on ${config.host}:${config.port}`));
 
   return {
+    /** Running activities in a server, for `/mod`. */
+    activities: (guildId: string) =>
+      [...rooms.values()].filter((r) => r.guildId === guildId && r.connectedCount > 0).map((r) => ({ channelId: r.channelId, ...r.summary() })),
+    /** Stops the game in every activity of a server (optionally one channel). Returns how many were running a game. */
+    stopActivities: (guildId: string, channelId: string | null, text: string): number => {
+      let n = 0;
+      for (const r of rooms.values()) {
+        if (r.guildId !== guildId || (channelId && r.channelId !== channelId) || !r.currentGame) continue;
+        r.forceStop(text);
+        n++;
+      }
+      return n;
+    },
     close: () =>
       new Promise<void>((done) => {
         clearInterval(sweeper);

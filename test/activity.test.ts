@@ -103,6 +103,58 @@ test('hub: only the host picks games, and only between games', () => {
   assert.equal(c.last<Msg>('g')?.m.t, 'state');
 });
 
+test('hub: moderators can stop a running game and take over as host', () => {
+  let idle = false;
+  let disposed = 0;
+  const fake = (): GameRoom => ({
+    get idle() {
+      return idle;
+    },
+    lastActivity: 0,
+    join: () => true,
+    leave: () => {},
+    handle: () => {},
+    dispose: () => void disposed++,
+  });
+  const hub = new Hub('i', 'g', null, fake);
+  const a = client();
+  const b = client();
+  const m = client();
+  hub.join({ id: 'A', name: 'Alice' }, a.conn as never);
+  hub.join({ id: 'B', name: 'Bob' }, b.conn as never);
+  hub.join({ id: 'M', name: 'Mod', mod: true }, m.conn as never);
+  assert.equal(m.last<Msg>('welcome')?.mod, true);
+  assert.equal(b.last<Msg>('welcome')?.mod, false);
+
+  idle = true;
+  hub.handle('A', { t: 'choose', game: 'quiz' });
+  idle = false;
+
+  // Regular players can't stop someone else's game or take over.
+  hub.handle('B', { t: 'menu' });
+  hub.handle('B', { t: 'takeover' });
+  assert.equal(hub.currentGame, 'quiz');
+  assert.equal(hub.hostId(), 'A');
+
+  // A moderator can stop it mid-game, and everyone is told.
+  hub.handle('M', { t: 'menu' });
+  assert.equal(hub.currentGame, null);
+  assert.equal(disposed, 1);
+  assert.match(a.last<Msg>('notice')?.text ?? '', /Mod \(moderator\) stopped the game/);
+
+  // Moderators can pick games without being host, and take over as host.
+  hub.handle('M', { t: 'choose', game: 'market' });
+  assert.equal(hub.currentGame, 'market');
+  hub.handle('M', { t: 'takeover' });
+  assert.equal(hub.hostId(), 'M');
+  assert.equal(a.last<Extract<ServerMessage, { t: 'hub' }>>('hub')?.players.find((p) => p.host)?.id, 'M');
+
+  // `/mod stop` from Discord.
+  hub.forceStop('A moderator stopped the game.');
+  assert.equal(hub.currentGame, null);
+  assert.equal(b.last<Msg>('notice')?.text, 'A moderator stopped the game.');
+});
+
 // ── Quiz ───────────────────────────────────────────────────────────────────
 
 test('quiz: sanitizeQuiz validates and cleans', () => {

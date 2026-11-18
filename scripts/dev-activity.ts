@@ -6,7 +6,8 @@
  *
  * Then open http://localhost:5173/?mock&name=Alice in one tab and
  * ?mock&name=Bob in another. The name doubles as the user ID, and nothing is
- * verified, which is why this only binds to localhost.
+ * verified, which is why this only binds to localhost. Names starting with
+ * "Mod" (e.g. ?mock&name=ModMia) get moderator controls.
  */
 import { mkdtempSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -41,7 +42,7 @@ wss.on('connection', (ws, req) => {
       id = cleanText(msg.accessToken.slice(5), 32) || 'Player';
       hub = hubs.get(msg.instanceId) ?? new Hub(msg.instanceId, 'dev-guild', null, createGame);
       hubs.set(msg.instanceId, hub);
-      hub.join({ id, name: id }, conn);
+      hub.join({ id, name: id, mod: /^mod/i.test(id) }, conn);
       return;
     }
     hub.handle(id, msg);
