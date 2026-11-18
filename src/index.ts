@@ -1,6 +1,7 @@
 import { Client, Events, GatewayIntentBits, MessageFlags, PermissionFlagsBits, type ChatInputCommandInteraction } from 'discord.js';
 import { startWebServer } from './activity/server.js';
 import { handleAutocomplete, handleHelp, handleLaunch, handleLeaderboard, handlePrivacy, handleServerData } from './commands/meta.js';
+import { handleMenu } from './commands/menu.js';
 import { loadConfig } from './config.js';
 import { handleDots, handleFourInARow, handleGomoku, handleHigherLower, handleMancala, handleNim, handleTicTacToe } from './games/boardgames.js';
 import { handleReaction } from './games/reaction.js';
@@ -72,6 +73,8 @@ async function route(interaction: ChatInputCommandInteraction): Promise<void> {
       return handleLeaderboard(interaction, store);
     case 'help':
       return handleHelp(interaction);
+    case 'menu':
+      return handleMenu(interaction);
     case 'privacy':
       return handlePrivacy(interaction, store, config.retentionDays);
     case 'server-data':

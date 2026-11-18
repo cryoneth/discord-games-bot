@@ -153,6 +153,7 @@ export function helpText(): string {
     '• Anyone can write quizzes in Quiz Arena. Only server managers can delete quizzes or server data.',
     '• Be kind in clues, quiz questions and chat.',
     '',
+    '**Game menu** `/menu` to browse every game, how it works and how to start it.',
     '**Leaderboards** `/leaderboard`, with daily, weekly, monthly and all-time boards (days in UTC, weeks start Monday).',
     '**Your data** `/privacy` to see, delete or stop recording your scores.',
     '',

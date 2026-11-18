@@ -30,7 +30,7 @@ Privacy-focused party games that run entirely inside Discord, built to be safe f
 
 **Activity games** run in one Discord Activity: `/play` (or `/draw`) opens it in a voice channel, the host picks a game, and everyone in the call plays. The host can end a game early and switch to another between games.
 
-Also: `/help` (every game and the house rules), `/leaderboard`, `/privacy`, and `/server-data` for server managers.
+Also: `/menu` (an interactive guide: pick any game from a dropdown to see how it works, how many can play and how to start it), `/help` (every game and the house rules on one page), `/leaderboard`, `/privacy`, and `/server-data` for server managers.
 
 > 🎈 **All games and leaderboards are just for fun.** The bot says this on `/help`, `/leaderboard`, `/privacy`, the Activity's game picker and every Activity results post.
 
@@ -52,7 +52,7 @@ These rules keep the boards fair:
 
 | Action | Who |
 |---|---|
-| Start and play any game, `/help`, `/leaderboard`, `/privacy` | Everyone |
+| Start and play any game, `/menu`, `/help`, `/leaderboard`, `/privacy` | Everyone |
 | Stop a running chat game | The person who started it, or anyone with **Manage Server** |
 | End an Activity game early, switch games | The Activity host (the first person who joined) |
 | `/server-data quizzes`: see every custom quiz and its author | **Manage Server** only (hidden from everyone else) |
@@ -188,7 +188,7 @@ src/
   render/             board images and confetti GIFs (@napi-rs/canvas + gifenc)
   ui/card.ts          Components V2 message cards shared by every game
   games/              all chat games, duel/turn helpers, pure rules (logic.ts), session lock, content
-  commands/           /play, /draw, /help, /leaderboard, /privacy, /server-data
+  commands/           /play, /draw, /menu, /help, /leaderboard, /privacy, /server-data
   activity/server.ts  HTTP + WebSocket server for the Activity (auth, rate limits)
   activity/hub.ts     one per Activity instance: players, host, game picker, message envelope
   activity/base.ts    shared room plumbing for Activity games (seats, host, chat, timers)

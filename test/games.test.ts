@@ -137,3 +137,22 @@ test('help text fits in one message and carries the disclaimer', () => {
   assert.ok(text.length < 3800, `help is ${text.length} chars`);
   assert.ok(text.includes(JUST_FOR_FUN));
 });
+
+test('/menu fits Discord limits and only names commands that exist', async () => {
+  const { GUIDE, guideCard } = await import('../src/commands/menu.js');
+  const { commands } = await import('../src/commands/index.js');
+  const { GAMES } = await import('../src/shared/protocol.js');
+  assert.ok(GUIDE.length <= 25, `${GUIDE.length} dropdown options`);
+  assert.equal(new Set(GUIDE.map((g) => g.id)).size, GUIDE.length);
+  const names = new Set(commands.map((c) => c.name));
+  for (const g of GUIDE) {
+    assert.ok(g.name.length <= 100 && g.short.length <= 90, g.id);
+    const { body } = guideCard(g.id);
+    assert.ok(body.length > 40 && body.length < 3500, g.id);
+    for (const [, cmd] of g.start.matchAll(/`\/([a-z-]+)/g)) assert.ok(names.has(cmd!), `${g.id} mentions /${cmd}`);
+  }
+  // Every Activity game is in the menu.
+  for (const game of GAMES) assert.ok(GUIDE.some((g) => g.name === game.name), `${game.name} missing from /menu`);
+  assert.ok(names.has('menu'));
+  assert.ok(guideCard(null).body.includes('Pick a game'));
+});

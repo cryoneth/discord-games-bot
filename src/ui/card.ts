@@ -5,6 +5,7 @@ import {
   ContainerBuilder,
   MessageFlags,
   SeparatorSpacingSize,
+  type MessageActionRowComponentBuilder,
 } from 'discord.js';
 import { celebrationGif } from '../render/animate.js';
 import type { Scene } from '../render/boards.js';
@@ -23,7 +24,7 @@ export interface Card {
   image?: Image;
   /** Small grey text under the image. */
   footer?: string;
-  rows?: ActionRowBuilder<ButtonBuilder>[];
+  rows?: ActionRowBuilder<MessageActionRowComponentBuilder>[];
 }
 
 /** Renders a scene as a PNG, or as a looping confetti GIF for big moments. */
