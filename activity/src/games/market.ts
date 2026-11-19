@@ -46,6 +46,18 @@ const PHONE = '(max-width: 800px) and (min-height: 501px)';
 
 type Tab = 'pos' | 'board' | 'chat' | 'vaults';
 
+/** Shown in the lobby and on the results screen. */
+function disclaimer() {
+  return el(
+    'div',
+    { className: 'disclaimer' },
+    el('strong', { textContent: 'Just a game, not real trading' }),
+    el('p', { textContent: 'Perp Arena is a simulation: a made-up token, play money, invented news and a scripted price. Nothing you win or lose here is real.' }),
+    el('p', { textContent: 'Real markets are different. Prices react to things no game can script, fees and liquidation rules vary by exchange, orders can fill at worse prices than you see, and with leverage you can lose real money very fast.' }),
+    el('p', { textContent: 'Nothing here is financial advice. Play it for fun and to learn the general ideas (leverage, liquidation, funding, risk), not as practice for trading with real money.' }),
+  );
+}
+
 export function createMarket(ctx: Ctx): View {
   let root: HTMLElement;
   let state: MarketStateMessage | null = null;
@@ -84,7 +96,8 @@ export function createMarket(ctx: Ctx): View {
   const vaultsEl = el('div', { className: 'vaults' });
   const closeBtn = button('Close position', () => ctx.send({ t: 'close' }), 'danger wide');
   const chat = new Chat('Trading floor', (text) => ctx.send({ t: 'chat', text: text.slice(0, MAX_CHAT_LENGTH) }));
-  const tradeEl = el('aside', { className: 'panel trade' }, accountEl, positionEl, noPosEl, ticketEl, vaultsEl);
+  const playMoneyEl = el('p', { className: 'play-money', textContent: 'Play money and invented news. Real markets with real money are far riskier than this game.' });
+  const tradeEl = el('aside', { className: 'panel trade' }, accountEl, positionEl, noPosEl, ticketEl, vaultsEl, playMoneyEl);
 
   // Phone tabs under the chart.
   const tabBtns = new Map<Tab, HTMLButtonElement>();
@@ -246,7 +259,7 @@ export function createMarket(ctx: Ctx): View {
         label: s.phase === 'finished' ? 'New market' : connected === 1 ? 'Open market (solo)' : `Open market · ${connected} traders`,
         onStart: () => ctx.send({ t: 'start' }),
       }),
-      el('p', { className: 'sub small', textContent: 'Simulation for learning only. Fictional asset, synthetic prices, no real money, not financial advice.' }),
+      disclaimer(),
       ctx.menuButton(),
     );
     lobbyEl.replaceChildren(card(...parts));

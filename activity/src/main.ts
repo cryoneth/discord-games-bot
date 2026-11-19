@@ -240,6 +240,8 @@ async function boot() {
     const cfg = (await (await fetch('/.proxy/api/config')).json()) as { clientId: string };
     const sdk = new DiscordSDK(cfg.clientId);
     await sdk.ready();
+    // Discord's mobile app draws its own header over the top of the Activity.
+    if (sdk.platform === 'mobile') document.documentElement.classList.add('discord-mobile');
     instanceId = sdk.instanceId;
     // Only the `identify` scope: username and avatar. No email, no server list.
     const { code } = await sdk.commands.authorize({

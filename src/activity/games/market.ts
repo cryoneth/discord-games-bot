@@ -56,6 +56,8 @@ export class MarketRoom extends BaseRoom<MarketSeat> {
   private prices: number[] = [];
   private totalTicks = 0;
   private rate = 0;
+  /** Extra funding pressure from recent headlines, fading back to the plan's bias. */
+  private newsBias = 0;
   private farmExploited = false;
   private endsAt: number | null = null;
   private results: MarketResult[] | null = null;
@@ -105,6 +107,7 @@ export class MarketRoom extends BaseRoom<MarketSeat> {
     this.farmExploited = false;
     this.results = null;
     this.rate = this.plan.crowdBias;
+    this.newsBias = 0;
     for (const s of this.players.values()) {
       s.account = newAccount();
       s.score = MARKET.startCash;
@@ -112,6 +115,7 @@ export class MarketRoom extends BaseRoom<MarketSeat> {
     this.phase = 'running';
     this.endsAt = Date.now() + this.totalTicks * this.tickMs;
     this.system(`📈 Market open! Everyone starts with ${money(MARKET.startCash)} of play money. Highest balance at the close wins.`);
+    this.system('⚠️ Just a simulation: a made-up token, play money and invented news. Real markets with real money are different and far riskier. Not financial advice.');
     this.broadcast({ t: 'history', prices: this.prices } satisfies MarketServerMessage);
     this.stopTicker();
     this.ticker = setInterval(() => this.step(), this.tickMs);
@@ -187,7 +191,11 @@ export class MarketRoom extends BaseRoom<MarketSeat> {
     const { price, news } = this.model.step();
     const tick = this.model.tick;
     this.prices.push(price);
-    for (const n of news) this.broadcast({ t: 'news', i: tick, text: n.text, tone: n.tone } satisfies MarketServerMessage);
+    for (const n of news) {
+      this.newsBias += n.funding;
+      this.broadcast({ t: 'news', i: tick, text: n.text, tone: n.tone } satisfies MarketServerMessage);
+    }
+    this.newsBias *= 0.97;
 
     if (tick === this.plan.exploitAt) {
       this.farmExploited = true;
@@ -212,7 +220,7 @@ export class MarketRoom extends BaseRoom<MarketSeat> {
     this.rate = fundingRate(
       [...this.players.values()].map((s) => s.account),
       price,
-      this.plan.crowdBias,
+      this.plan.crowdBias + this.newsBias,
     );
 
     const board = this.board();

@@ -14,8 +14,18 @@ import {
   type Side,
   type Vault,
 } from '../../shared/market.js';
+import { filler, KEY_EVENTS, NOISE, STORIES, type Headline } from './market-news.js';
 
 export type Rng = () => number;
+
+function shuffled<T>(xs: readonly T[], rng: Rng): T[] {
+  const out = [...xs];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+}
 
 /** Small fast seeded PRNG (mulberry32). */
 export function seeded(seed: number): Rng {
@@ -34,7 +44,8 @@ function gauss(rng: Rng): number {
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rng());
 }
 
-export type Tone = 'good' | 'bad' | 'neutral';
+import type { Tone } from './market-news.js';
+export type { Tone };
 
 export interface NewsEvent {
   at: number;
@@ -45,6 +56,8 @@ export interface NewsEvent {
   over: number;
   /** Extra volatility afterwards, decaying. */
   vol: number;
+  /** Shift in funding pressure (positive: longs crowded), fading over time. */
+  funding: number;
 }
 
 interface Segment {
@@ -67,27 +80,15 @@ export interface MarketPlan {
 
 export const REAL_SCENARIOS = ['bull', 'bear', 'chop', 'squeeze', 'crash'] as const;
 
-const NOISE: { text: string; tone: Tone }[] = [
-  { text: '🟢 Rumour: a big exchange is about to list ZETA', tone: 'good' },
-  { text: '🟢 ZETA Foundation announces a token buyback', tone: 'good' },
-  { text: '🟢 A large fund discloses a ZETA position', tone: 'good' },
-  { text: '🟢 Network upgrade ships: fees cut by 90%', tone: 'good' },
-  { text: '🔴 Regulator opens an inquiry into the ZETA Foundation', tone: 'bad' },
-  { text: '🔴 Whale wallet moves 5% of supply to an exchange', tone: 'bad' },
-  { text: '🔴 Large token unlock hits the market today', tone: 'bad' },
-  { text: '🔴 Network halted for 3 hours after a bug', tone: 'bad' },
-  { text: '⚪ An influencer posts a rocket emoji about ZETA', tone: 'neutral' },
-  { text: '⚪ ZETA is trending on social media', tone: 'neutral' },
-  { text: '⚪ Analyst: "ZETA could go either way from here"', tone: 'neutral' },
-];
-
 /** Build the script for one game: regimes, scheduled news and whether the farm gets exploited. */
 export function makePlan(scenario: Exclude<Scenario, 'mystery'>, totalTicks: number, rng: Rng): MarketPlan {
   const at = (frac: number) => Math.max(1, Math.min(totalTicks - 2, Math.round(frac * totalTicks)));
-  const jitter = (frac: number) => at(frac + (rng() - 0.5) * 0.08);
-  const ev = (frac: number, text: string, tone: Tone, move: number, over: number, vol = 0.004): NewsEvent => ({ at: jitter(frac), text, tone, move, over, vol });
+  const between = ([lo, hi]: [number, number]) => lo + rng() * (hi - lo);
+  const events: NewsEvent[] = [];
+  const add = (frac: number, h: Headline, flip = false, fill = filler(rng)) =>
+    events.push({ at: at(frac), text: fill(h.text), tone: h.tone, move: between(h.move) * (flip ? -1 : 1), over: h.over ?? 3, vol: h.vol ?? 0.002, funding: h.funding ?? 0 });
+  const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rng() * xs.length)]!;
   let segments: Segment[];
-  let events: NewsEvent[] = [];
   let meanRevert = false;
   let crowdBias = 0.00005;
   switch (scenario) {
@@ -97,7 +98,6 @@ export function makePlan(scenario: Exclude<Scenario, 'mystery'>, totalTicks: num
         { until: 0.45, mu: -0.0006, sigma: 0.008 },
         { until: 1, mu: 0.001, sigma: 0.007 },
       ];
-      events = [ev(0.35, '🔴 A whale takes profit and dumps on the market', 'bad', -0.06, 4), ev(0.6, '🟢 First ZETA exchange-traded fund approved', 'good', 0.12, 6, 0.006)];
       crowdBias = 0.0002;
       break;
     case 'bear':
@@ -107,13 +107,11 @@ export function makePlan(scenario: Exclude<Scenario, 'mystery'>, totalTicks: num
         { until: 0.7, mu: 0.0008, sigma: 0.007 },
         { until: 1, mu: -0.0008, sigma: 0.007 },
       ];
-      events = [ev(0.3, '🔴 A big lender holding ZETA pauses withdrawals', 'bad', -0.12, 6, 0.007), ev(0.58, '🟢 Rescue deal for the lender rumoured', 'good', 0.07, 4)];
       crowdBias = -0.00008;
       break;
     case 'chop':
       segments = [{ until: 1, mu: 0, sigma: 0.005 }];
       meanRevert = true;
-      events = [ev(0.3, '🟢 Breakout! ZETA clears a key resistance level', 'good', 0.045, 3), ev(0.65, '🔴 Breakdown: ZETA loses support', 'bad', -0.045, 3)];
       crowdBias = 0.0001;
       break;
     case 'squeeze':
@@ -122,7 +120,6 @@ export function makePlan(scenario: Exclude<Scenario, 'mystery'>, totalTicks: num
         { until: 0.75, mu: 0.0012, sigma: 0.01 },
         { until: 1, mu: -0.0003, sigma: 0.008 },
       ];
-      events = [ev(0.6, '🧨 Shorts are getting squeezed: forced buybacks everywhere', 'good', 0.2, 10, 0.01)];
       crowdBias = -0.0003;
       break;
     case 'crash':
@@ -131,22 +128,35 @@ export function makePlan(scenario: Exclude<Scenario, 'mystery'>, totalTicks: num
         { until: 0.8, mu: -0.0008, sigma: 0.012 },
         { until: 1, mu: 0.0004, sigma: 0.009 },
       ];
-      events = [ev(0.65, '💥 Liquidation cascade: ZETA nukes in minutes', 'bad', -0.28, 8, 0.012)];
       crowdBias = 0.0003;
       break;
   }
-  // A few headlines that may or may not matter.
-  const pool = [...NOISE];
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [pool[i], pool[j]] = [pool[j]!, pool[i]!];
-  }
-  const noise = pool.slice(0, 3);
-  for (const [i, n] of noise.entries()) {
-    const sign = n.tone === 'good' ? 1 : n.tone === 'bad' ? -1 : rng() < 0.5 ? 1 : -1;
-    // Not every headline moves the price the way it sounds.
-    const size = (0.01 + rng() * 0.02) * (rng() < 0.75 ? sign : -sign);
-    events.push(ev(0.12 + i * 0.28 + rng() * 0.1, n.text, n.tone, size, 3, 0.002));
+  // The scenario's big moments, each told one of several ways.
+  for (const k of KEY_EVENTS[scenario]) add(k.at + (rng() - 0.5) * 0.08, pick(k.variants));
+
+  // Everyday headlines and two-part stories, spread through the game. Longer games get more.
+  const slots = Math.max(3, Math.round(totalTicks / 110));
+  const noise = shuffled(NOISE, rng);
+  const stories = shuffled(STORIES, rng);
+  const keyAts = events.map((e) => e.at / totalTicks);
+  for (let i = 0; i < slots; i++) {
+    let frac = 0.06 + ((i + 0.2 + rng() * 0.6) / slots) * 0.86;
+    // Keep clear of the big moments so headlines don't trample each other.
+    if (keyAts.some((k) => Math.abs(k - frac) < 0.035)) frac += 0.05;
+    const story = rng() < 0.35 ? stories.pop() : undefined;
+    if (story) {
+      // Both parts of a story talk about the same exchange, fund or bridge.
+      const fill = filler(rng);
+      add(frac, story.first, false, fill);
+      const r = rng();
+      let acc = 0;
+      const next = story.then?.find((o) => (acc += o.p) >= r) ?? story.then?.at(-1);
+      if (next) add(frac + 0.04 + rng() * 0.05, next.h, false, fill);
+    } else {
+      const h = noise.pop();
+      // Not every headline moves the price the way it sounds.
+      if (h) add(frac, h, rng() < (h.fakeout ?? 0.2));
+    }
   }
   events.sort((a, b) => a.at - b.at);
   const exploitAt = rng() < 0.4 ? at(0.3 + rng() * 0.55) : null;
