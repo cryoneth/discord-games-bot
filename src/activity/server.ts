@@ -13,6 +13,7 @@ import { TokenBucket } from '../util/ratelimit.js';
 import type { ChessService } from './chess/service.js';
 import { gameFactory } from './games/index.js';
 import { Hub, type HubConn } from './hub.js';
+import { ActivityInvites } from './invites.js';
 import { cleanText, type RoomResult } from './room.js';
 
 const STATIC_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../public');
@@ -59,6 +60,7 @@ interface Deps {
 
 export function startWebServer({ config, store, discord, chess }: Deps) {
   const rooms = new Map<string, Hub>();
+  const invites = new ActivityInvites(discord);
   const tokenBuckets = new Map<string, TokenBucket>();
   const allowedOrigin = `https://${config.clientId}.discordsays.com`;
   const isProd = process.env.NODE_ENV === 'production';
@@ -329,6 +331,7 @@ export function startWebServer({ config, store, discord, chess }: Deps) {
           if (rooms.size >= MAX_ROOMS) return fail('The server is busy. Try again soon.');
           room = new Hub(msg.instanceId, identity.guildId, identity.channelId, createGame);
           rooms.set(msg.instanceId, room);
+          invites.track(room);
         }
         if (userConnCount(identity.id) >= MAX_CONNS_PER_USER) return fail('Too many open sessions.');
         if (!room.join({ id: identity.id, name: identity.name, mod: identity.mod }, conn)) return fail('This activity is full.');
@@ -367,6 +370,7 @@ export function startWebServer({ config, store, discord, chess }: Deps) {
     const now = Date.now();
     for (const [id, room] of rooms) {
       if (room.connectedCount === 0 && now - room.lastActivity > ROOM_IDLE_MS) {
+        invites.untrack(room);
         room.dispose();
         rooms.delete(id);
       }
@@ -391,12 +395,14 @@ export function startWebServer({ config, store, discord, chess }: Deps) {
       }
       return n;
     },
-    close: () =>
-      new Promise<void>((done) => {
+    close: async () => {
+      await invites.shutdown();
+      return new Promise<void>((done) => {
         clearInterval(sweeper);
         for (const ws of wss.clients) ws.close(1001, 'shutting down');
         for (const room of rooms.values()) room.dispose();
         server.close(() => done());
-      }),
+      });
+    },
   };
 }

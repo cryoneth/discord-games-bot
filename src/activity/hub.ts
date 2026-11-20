@@ -28,6 +28,8 @@ export class Hub {
   private game: GameId | null = null;
   private room: GameRoom | null = null;
   private touched = Date.now();
+  /** Called whenever who is here or the game changes (drives the chat invite). */
+  onChange: (() => void) | null = null;
 
   constructor(
     readonly instanceId: string,
@@ -130,7 +132,13 @@ export class Hub {
     return { game: this.game, host, online: this.connectedCount };
   }
 
+  /** Connected players in join order, host first. */
+  connectedIds(): string[] {
+    return this.order.filter((id) => (this.members.get(id)?.conns.size ?? 0) > 0);
+  }
+
   dispose(): void {
+    this.onChange = null;
     this.room?.dispose();
     this.room = null;
     this.members.clear();
@@ -203,5 +211,6 @@ export class Hub {
       .map((m) => ({ id: m.id, name: m.name, connected: m.conns.size > 0, host: m.id === host }));
     const msg: ServerMessage = { t: 'hub', game: this.game, players, now: Date.now() };
     for (const m of this.members.values()) for (const c of m.conns) c.send(msg);
+    this.onChange?.();
   }
 }
