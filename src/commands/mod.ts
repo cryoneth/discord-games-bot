@@ -3,6 +3,7 @@ import { gameInfo, type GameId } from '../shared/protocol.js';
 import { runningDuels } from '../games/duel.js';
 import type { ChannelSessions } from '../games/sessions.js';
 import { isModerator } from '../moderation.js';
+import type { ChessService } from '../activity/chess/service.js';
 
 export interface Activities {
   activities(guildId: string): { channelId: string | null; game: GameId | null; host: string | null; online: number }[];
@@ -12,6 +13,7 @@ export interface Activities {
 interface Deps {
   sessions: ChannelSessions;
   web: Activities;
+  chess?: ChessService;
 }
 
 // No default member permissions: mod roles don't need Manage Server, so the check happens when it runs.
@@ -52,9 +54,15 @@ export async function handleMod(interaction: ChatInputCommandInteraction, deps: 
       const what = a.game ? gameInfo(a.game).name : 'picking a game';
       lines.push(`• **Activity** in ${where}: ${what}, ${a.online} here${a.host ? `, host <@${a.host}>` : ''}`);
     }
+    for (const g of deps.chess?.liveGames(guildId) ?? []) {
+      lines.push(`• **Chess**${g.tourneyId ? ' (tournament)' : ''}: <@${g.white.id}> vs <@${g.black.id}>, ${g.tc}, move ${Math.ceil(g.plies / 2) || 1}`);
+    }
+    for (const t of deps.chess?.list(guildId) ?? []) {
+      if (t.status !== 'finished') lines.push(`• **Chess tournament** ${t.name}: ${t.status === 'running' ? 'running' : `starts <t:${Math.floor(t.starts_at / 1000)}:R>`}`);
+    }
     await interaction.reply({
       content: lines.length
-        ? `**Running now**\n${lines.join('\n')}\n\nStop them with \`/mod stop\` or \`/mod stop-all\`. In an Activity, moderators also get **Take control** and **Stop game** buttons.`
+        ? `**Running now**\n${lines.join('\n')}\n\nStop them with \`/mod stop\` or \`/mod stop-all\`. In an Activity, moderators also get **Take control** and **Stop game** buttons, and can abort or decide any chess game. Manage tournaments with \`/tournament edit\`, \`kick\` and \`remove\`.`
         : 'No games are running on this server.',
       ...ephemeral,
     });
@@ -75,6 +83,13 @@ export async function handleMod(interaction: ChatInputCommandInteraction, deps: 
     stopped++;
   }
   stopped += deps.web.stopActivities(guildId, channelId, 'A moderator stopped the game.');
+  if (channelId === null && deps.chess) {
+    // stop-all also aborts chess games of players who aren't on a chess screen right now.
+    for (const g of deps.chess.liveGames(guildId)) {
+      deps.chess.decide(guildId, g.id, 'abort');
+      stopped++;
+    }
+  }
 
   const where = channelId ? `in <#${channelId}>` : 'on this server';
   await interaction.reply({

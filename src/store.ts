@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import type { TimeControl, TourneyStatus } from './shared/chess.js';
 import { QUIZ_LIMITS, type Quiz, type QuizDraft, type QuizSummary } from './shared/quiz.js';
 
 export type GameId =
@@ -26,7 +27,8 @@ export type GameId =
   | 'reaction'
   | 'laststanding'
   | 'minority'
-  | 'massreaction';
+  | 'massreaction'
+  | 'chess';
 
 export interface QuizRow {
   id: string;
@@ -46,6 +48,57 @@ export interface QuizRepo {
   save(ownerId: string, draft: QuizDraft, id?: string): { id: string } | { error: string };
   remove(ownerId: string, id: string): boolean;
   markUsed(id: string): void;
+}
+
+/** A chess arena tournament. Names of players are never stored, only user IDs. */
+export interface TourneyRow {
+  id: string;
+  /** Server ID (or `local` outside servers). */
+  scope: string;
+  /** Where announcements and results are posted (may be empty). */
+  channel_id: string;
+  created_by: string;
+  name: string;
+  tc: TimeControl;
+  starts_at: number;
+  duration_min: number;
+  max_players: number;
+  status: TourneyStatus;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface EntryRow {
+  tourney_id: string;
+  user_id: string;
+  score: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  games: number;
+  /** Wins in a row (two or more: on fire). */
+  streak: number;
+  /** JSON array of points per game. */
+  sheet: string;
+  /** Games played as white minus games as black, for fair colours. */
+  color_balance: number;
+  /** Removed by a moderator: can't rejoin. */
+  banned: number;
+  joined_at: number;
+}
+
+/** Tournament storage, as seen by the chess service. */
+export interface ChessRepo {
+  createTourney(row: TourneyRow): void;
+  updateTourney(id: string, patch: Partial<Omit<TourneyRow, 'id' | 'scope'>>): void;
+  deleteTourney(id: string): void;
+  getTourney(id: string): TourneyRow | null;
+  listTourneys(scope: string): TourneyRow[];
+  /** Scheduled or running tournaments on every server (loaded at startup). */
+  openTourneys(): TourneyRow[];
+  entries(tourneyId: string): EntryRow[];
+  saveEntry(row: EntryRow): void;
+  deleteEntry(tourneyId: string, userId: string): void;
 }
 
 export type Period = 'day' | 'week' | 'month' | 'all';
@@ -157,6 +210,38 @@ export class ScoreStore {
       );
       CREATE INDEX IF NOT EXISTS quizzes_scope ON quizzes (scope);
       CREATE INDEX IF NOT EXISTS quizzes_owner ON quizzes (owner_id);
+      CREATE TABLE IF NOT EXISTS chess_tourneys (
+        id           TEXT    PRIMARY KEY,
+        scope        TEXT    NOT NULL,
+        channel_id   TEXT    NOT NULL DEFAULT '',
+        created_by   TEXT    NOT NULL,
+        name         TEXT    NOT NULL,
+        tc           TEXT    NOT NULL,
+        starts_at    INTEGER NOT NULL,
+        duration_min INTEGER NOT NULL,
+        max_players  INTEGER NOT NULL,
+        status       TEXT    NOT NULL,
+        created_at   INTEGER NOT NULL,
+        updated_at   INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS chess_tourneys_scope ON chess_tourneys (scope);
+      CREATE INDEX IF NOT EXISTS chess_tourneys_status ON chess_tourneys (status);
+      CREATE TABLE IF NOT EXISTS chess_entries (
+        tourney_id    TEXT    NOT NULL,
+        user_id       TEXT    NOT NULL,
+        score         INTEGER NOT NULL DEFAULT 0,
+        wins          INTEGER NOT NULL DEFAULT 0,
+        draws         INTEGER NOT NULL DEFAULT 0,
+        losses        INTEGER NOT NULL DEFAULT 0,
+        games         INTEGER NOT NULL DEFAULT 0,
+        streak        INTEGER NOT NULL DEFAULT 0,
+        sheet         TEXT    NOT NULL DEFAULT '[]',
+        color_balance INTEGER NOT NULL DEFAULT 0,
+        banned        INTEGER NOT NULL DEFAULT 0,
+        joined_at     INTEGER NOT NULL,
+        PRIMARY KEY (tourney_id, user_id)
+      );
+      CREATE INDEX IF NOT EXISTS chess_entries_user ON chess_entries (user_id);
     `);
   }
 
@@ -235,12 +320,14 @@ export class ScoreStore {
     };
   }
 
-  userData(userId: string): { rows: ScoreRow[]; days: DayRow[]; quizzes: QuizRow[]; optedOut: boolean } {
+  userData(userId: string): { rows: ScoreRow[]; days: DayRow[]; quizzes: QuizRow[]; tournamentEntries: EntryRow[]; tournamentsCreated: TourneyRow[]; optedOut: boolean } {
     const rows = this.db.prepare('SELECT * FROM scores WHERE user_id = ? ORDER BY guild_id, game').all(userId) as unknown as ScoreRow[];
     const days = this.db.prepare('SELECT * FROM score_days WHERE user_id = ? ORDER BY guild_id, day, game').all(userId) as unknown as DayRow[];
     const quizzes = this.db.prepare('SELECT * FROM quizzes WHERE owner_id = ? ORDER BY scope, created_at').all(userId) as unknown as QuizRow[];
+    const tournamentEntries = this.db.prepare('SELECT * FROM chess_entries WHERE user_id = ? ORDER BY joined_at').all(userId) as unknown as EntryRow[];
+    const tournamentsCreated = this.db.prepare('SELECT * FROM chess_tourneys WHERE created_by = ? ORDER BY created_at').all(userId) as unknown as TourneyRow[];
     const optedOut = Boolean(this.db.prepare('SELECT 1 FROM opt_out WHERE user_id = ?').get(userId));
-    return { rows, days, quizzes, optedOut };
+    return { rows, days, quizzes, tournamentEntries, tournamentsCreated, optedOut };
   }
 
   /** Deletes the user's scores and the quizzes they wrote. */
@@ -250,6 +337,9 @@ export class ScoreStore {
       n += Number(this.db.prepare('DELETE FROM scores WHERE user_id = ?').run(userId).changes);
       this.db.prepare('DELETE FROM score_days WHERE user_id = ?').run(userId);
       n += Number(this.db.prepare('DELETE FROM quizzes WHERE owner_id = ?').run(userId).changes);
+      n += Number(this.db.prepare('DELETE FROM chess_entries WHERE user_id = ?').run(userId).changes);
+      // Tournaments they organised stay for everyone else, without their ID.
+      n += Number(this.db.prepare("UPDATE chess_tourneys SET created_by = '' WHERE created_by = ?").run(userId).changes);
     });
     return n;
   }
@@ -308,6 +398,44 @@ export class ScoreStore {
     };
   }
 
+  chess(): ChessRepo {
+    const db = this.db;
+    const COLS = ['channel_id', 'created_by', 'name', 'tc', 'starts_at', 'duration_min', 'max_players', 'status', 'updated_at'] as const;
+    return {
+      createTourney: (r) =>
+        void db
+          .prepare(
+            'INSERT INTO chess_tourneys (id, scope, channel_id, created_by, name, tc, starts_at, duration_min, max_players, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          )
+          .run(r.id, r.scope, r.channel_id, r.created_by, r.name, r.tc, r.starts_at, r.duration_min, r.max_players, r.status, r.created_at, r.updated_at),
+      updateTourney: (id, patch) => {
+        const keys = COLS.filter((k) => patch[k] !== undefined);
+        if (!keys.length) return;
+        db.prepare(`UPDATE chess_tourneys SET ${keys.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`).run(...keys.map((k) => patch[k] as string | number), id);
+      },
+      deleteTourney: (id) =>
+        this.transaction(() => {
+          db.prepare('DELETE FROM chess_entries WHERE tourney_id = ?').run(id);
+          db.prepare('DELETE FROM chess_tourneys WHERE id = ?').run(id);
+        }),
+      getTourney: (id) => (db.prepare('SELECT * FROM chess_tourneys WHERE id = ?').get(id) as unknown as TourneyRow | undefined) ?? null,
+      listTourneys: (scope) => db.prepare('SELECT * FROM chess_tourneys WHERE scope = ? ORDER BY starts_at').all(scope) as unknown as TourneyRow[],
+      openTourneys: () => db.prepare("SELECT * FROM chess_tourneys WHERE status IN ('scheduled', 'running') ORDER BY starts_at").all() as unknown as TourneyRow[],
+      entries: (tid) => db.prepare('SELECT * FROM chess_entries WHERE tourney_id = ? ORDER BY joined_at').all(tid) as unknown as EntryRow[],
+      saveEntry: (e) =>
+        void db
+          .prepare(
+            `INSERT INTO chess_entries (tourney_id, user_id, score, wins, draws, losses, games, streak, sheet, color_balance, banned, joined_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT (tourney_id, user_id) DO UPDATE SET score = excluded.score, wins = excluded.wins, draws = excluded.draws,
+               losses = excluded.losses, games = excluded.games, streak = excluded.streak, sheet = excluded.sheet,
+               color_balance = excluded.color_balance, banned = excluded.banned`,
+          )
+          .run(e.tourney_id, e.user_id, e.score, e.wins, e.draws, e.losses, e.games, e.streak, e.sheet, e.color_balance, e.banned, e.joined_at),
+      deleteEntry: (tid, uid) => void db.prepare('DELETE FROM chess_entries WHERE tourney_id = ? AND user_id = ?').run(tid, uid),
+    };
+  }
+
   setOptOut(userId: string, optOut: boolean): void {
     if (optOut) {
       this.transaction(() => {
@@ -327,6 +455,8 @@ export class ScoreStore {
       n += Number(this.db.prepare('DELETE FROM scores WHERE guild_id = ?').run(guildId).changes);
       this.db.prepare('DELETE FROM score_days WHERE guild_id = ?').run(guildId);
       n += Number(this.db.prepare('DELETE FROM quizzes WHERE scope = ?').run(guildId).changes);
+      this.db.prepare('DELETE FROM chess_entries WHERE tourney_id IN (SELECT id FROM chess_tourneys WHERE scope = ?)').run(guildId);
+      n += Number(this.db.prepare('DELETE FROM chess_tourneys WHERE scope = ?').run(guildId).changes);
     });
     return n;
   }
@@ -337,6 +467,10 @@ export class ScoreStore {
     let n = Number(this.db.prepare('DELETE FROM scores WHERE updated_at < ?').run(cutoff).changes);
     n += Number(this.db.prepare('DELETE FROM score_days WHERE day < ?').run(dayKey(cutoff)).changes);
     n += Number(this.db.prepare('DELETE FROM quizzes WHERE updated_at < ? AND used_at < ?').run(cutoff, cutoff).changes);
+    this.transaction(() => {
+      this.db.prepare("DELETE FROM chess_entries WHERE tourney_id IN (SELECT id FROM chess_tourneys WHERE status = 'finished' AND updated_at < ?)").run(cutoff);
+      n += Number(this.db.prepare("DELETE FROM chess_tourneys WHERE status = 'finished' AND updated_at < ?").run(cutoff).changes);
+    });
     return n;
   }
 

@@ -5,7 +5,7 @@
  * Shared by both sides; must stay free of Node/DOM imports.
  */
 
-export type GameId = 'drawing' | 'oddoneout' | 'forbidden' | 'quiz' | 'market' | 'massreaction';
+export type GameId = 'drawing' | 'oddoneout' | 'forbidden' | 'quiz' | 'market' | 'massreaction' | 'chess';
 
 export interface GameInfo {
   id: GameId;
@@ -14,6 +14,8 @@ export interface GameInfo {
   blurb: string;
   minPlayers: number;
   maxPlayers: number;
+  /** Shown on the picker instead of "min–max players". */
+  playersLabel?: string;
 }
 
 export const GAMES: readonly GameInfo[] = [
@@ -23,6 +25,7 @@ export const GAMES: readonly GameInfo[] = [
   { id: 'quiz', name: 'Quiz Arena', emoji: '⚡', blurb: 'Fast live quizzes. Play a built-in one or build your own for the server.', minPlayers: 1, maxPlayers: 16 },
   { id: 'market', name: 'Perp Arena', emoji: '📈', blurb: 'A trading simulator with play money: leverage, funding, liquidations and yield farms.', minPlayers: 1, maxPlayers: 16 },
   { id: 'massreaction', name: 'Mass Reaction', emoji: '🚦', blurb: 'Tap the moment it turns green. Too early or too slow and you’re out. Built for big crowds.', minPlayers: 2, maxPlayers: 100 },
+  { id: 'chess', name: 'Chess', emoji: '♟️', blurb: 'Challenge someone to a clocked game, watch the boards, or play the server’s arena tournaments.', minPlayers: 1, maxPlayers: 100, playersLabel: '1v1 · tournaments up to 50' },
 ];
 
 export const gameInfo = (id: GameId): GameInfo => GAMES.find((g) => g.id === id)!;

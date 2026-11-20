@@ -3,6 +3,8 @@ import type { ScoreStore } from '../../store.js';
 import type { GameRoom, RoomContext, RoomResult } from '../base.js';
 import type { Hub } from '../hub.js';
 import { Room } from '../room.js';
+import type { ChessService } from '../chess/service.js';
+import { ChessRoom } from './chess.js';
 import { ForbiddenRoom } from './forbidden.js';
 import { MarketRoom } from './market.js';
 import { MassReactionRoom } from './massreaction.js';
@@ -11,6 +13,7 @@ import { QuizRoom } from './quiz.js';
 
 interface Deps {
   store: Pick<ScoreStore, 'quizzes'>;
+  chess: ChessService;
   onGameEnd(hub: Hub, game: GameId, results: RoomResult[]): void;
 }
 
@@ -18,7 +21,7 @@ interface Deps {
 export const quizScope = (hub: Hub) => hub.guildId ?? (hub.channelId ? `channel:${hub.channelId}` : 'local');
 
 /** Creates the room for whichever game the host picked. */
-export function gameFactory({ store, onGameEnd }: Deps) {
+export function gameFactory({ store, chess, onGameEnd }: Deps) {
   return (game: GameId, hub: Hub): GameRoom => {
     const ctx: RoomContext = {
       instanceId: hub.instanceId,
@@ -26,6 +29,7 @@ export function gameFactory({ store, onGameEnd }: Deps) {
       channelId: hub.channelId,
       onGameEnd: (results) => onGameEnd(hub, game, results),
       hostId: () => hub.hostId(),
+      isMod: (userId) => hub.isMod(userId),
     };
     switch (game) {
       case 'drawing':
@@ -40,6 +44,8 @@ export function gameFactory({ store, onGameEnd }: Deps) {
         return new MarketRoom(ctx);
       case 'massreaction':
         return new MassReactionRoom(ctx);
+      case 'chess':
+        return new ChessRoom(ctx, chess);
     }
   };
 }

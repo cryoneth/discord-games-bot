@@ -14,6 +14,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WebSocketServer } from 'ws';
+import { ChessService } from '../src/activity/chess/service.js';
 import { gameFactory } from '../src/activity/games/index.js';
 import { Hub, type HubConn } from '../src/activity/hub.js';
 import { cleanText } from '../src/activity/room.js';
@@ -21,8 +22,14 @@ import { HUB_LIMITS, type ClientMessage, type ServerMessage } from '../src/share
 import { ScoreStore } from '../src/store.js';
 
 const store = new ScoreStore(mkdtempSync(join(tmpdir(), 'games-dev-')));
+const chess = new ChessService({
+  repo: store.chess(),
+  record: (guildId, results) => (console.log(`[chess] ${guildId} results`, results), true),
+  announce: (ev) => console.log(`[chess] tournament ${ev.kind}: ${ev.row.name}`),
+});
 const createGame = gameFactory({
   store,
+  chess,
   onGameEnd: (_hub, game, results) => console.log(`[${game}] results`, results),
 });
 const hubs = new Map<string, Hub>();

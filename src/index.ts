@@ -1,5 +1,8 @@
 import { Client, Events, GatewayIntentBits, MessageFlags, PermissionFlagsBits, type ChatInputCommandInteraction } from 'discord.js';
+import { ChessService } from './activity/chess/service.js';
 import { startWebServer } from './activity/server.js';
+import { cleanText } from './activity/room.js';
+import { handleTournament, handleTournamentAutocomplete, tournamentAnnouncer } from './commands/tournament.js';
 import { handleAutocomplete, handleHelp, handleLaunch, handleLeaderboard, handlePrivacy, handleServerData } from './commands/meta.js';
 import { handleMenu } from './commands/menu.js';
 import { handleMod } from './commands/mod.js';
@@ -83,7 +86,9 @@ async function route(interaction: ChatInputCommandInteraction): Promise<void> {
     case 'server-data':
       return handleServerData(interaction, store);
     case 'mod':
-      return handleMod(interaction, { sessions, web });
+      return handleMod(interaction, { sessions, web, chess });
+    case 'tournament':
+      return handleTournament(interaction, { chess });
   }
 }
 
@@ -107,7 +112,10 @@ function missingChannelPermissions(interaction: ChatInputCommandInteraction): st
 }
 
 client.on(Events.InteractionCreate, async (interaction) => {
-  if (interaction.isAutocomplete()) return handleAutocomplete(interaction, store);
+  if (interaction.isAutocomplete()) {
+    if (interaction.commandName === 'tournament') return handleTournamentAutocomplete(interaction, { chess });
+    return handleAutocomplete(interaction, store);
+  }
   if (!interaction.isChatInputCommand()) return; // buttons are handled by per-game collectors
   const wait = commandCooldown.hit(interaction.user.id);
   if (wait > 0) {
@@ -152,7 +160,18 @@ const purge = () => {
 purge();
 setInterval(purge, 6 * 60 * 60 * 1000).unref();
 
-const web = startWebServer({ config, store, discord: client });
+// Chess tournaments are stored and survive restarts; games and who's online are in memory.
+const chess = new ChessService({
+  repo: store.chess(),
+  record: (guildId, results) => store.record(guildId, 'chess', results),
+  announce: tournamentAnnouncer(client),
+  // Names are looked up when needed and never stored.
+  resolveName: async (id) => {
+    const user = await client.users.fetch(id).catch(() => null);
+    return user ? cleanText(user.globalName || user.username, 32) || null : null;
+  },
+});
+const web = startWebServer({ config, store, discord: client, chess });
 await client.login(config.token);
 
 let shuttingDown = false;
@@ -161,6 +180,7 @@ async function shutdown(signal: string) {
   shuttingDown = true;
   log.info(`${signal} received, shutting down`);
   sessions.stopAll();
+  chess.dispose();
   await web.close().catch(() => {});
   await client.destroy().catch(() => {});
   store.close();

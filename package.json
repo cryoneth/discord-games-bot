@@ -16,6 +16,7 @@
   "type": "module",
   "dependencies": {
     "@napi-rs/canvas": "1.0.13",
+    "chess.js": "1.4.0",
     "discord.js": "^14.28.1",
     "gifenc": "1.0.3",
     "ws": "^8.22.2"

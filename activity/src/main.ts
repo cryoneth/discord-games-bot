@@ -2,6 +2,7 @@ import { DiscordSDK } from '@discord/embedded-app-sdk';
 import { GAMES, JUST_FOR_FUN, type ClientMessage, type GameId, type HubPlayer, type ServerMessage } from '../../src/shared/protocol';
 import { button, card, el, renderPlayers, waiting, type Ctx, type View } from './core';
 import { icon, type IconName } from './icons';
+import { createChess } from './games/chess';
 import { createForbidden } from './games/forbidden';
 import { createMarket } from './games/market';
 import { createMassReaction } from './games/massreaction';
@@ -10,6 +11,7 @@ import { createQuiz } from './games/quiz';
 import { createSketch } from './games/sketch';
 import './games.css';
 import './sketch.css';
+import './chess.css';
 
 const FACTORIES: Record<GameId, (ctx: Ctx) => View> = {
   drawing: createSketch,
@@ -18,6 +20,7 @@ const FACTORIES: Record<GameId, (ctx: Ctx) => View> = {
   quiz: createQuiz,
   market: createMarket,
   massreaction: createMassReaction,
+  chess: createChess,
 };
 
 const app = document.getElementById('app')!;
@@ -110,7 +113,7 @@ function notice(...children: Node[]) {
   app.replaceChildren(el('div', { className: 'app' }, el('div', { className: 'stage-center' }, card(...children))));
 }
 
-const GAME_ICONS: Record<GameId, IconName> = { drawing: 'palette', oddoneout: 'magnifier', forbidden: 'ban', quiz: 'bolt', market: 'chart', massreaction: 'target' };
+const GAME_ICONS: Record<GameId, IconName> = { drawing: 'palette', oddoneout: 'magnifier', forbidden: 'ban', quiz: 'bolt', market: 'chart', massreaction: 'target', chess: 'pawn' };
 
 // ── Game picker ────────────────────────────────────────────────────────────
 
@@ -132,7 +135,7 @@ function renderPicker() {
         el('span', { className: 'tile-emoji' }, icon(GAME_ICONS[g.id])),
         el('span', { className: 'tile-name', textContent: g.name }),
         el('span', { className: 'tile-blurb', textContent: g.blurb }),
-        el('span', { className: `tile-players${tooFew ? ' short' : ''}`, textContent: g.minPlayers === 1 ? `1–${g.maxPlayers} players` : `${g.minPlayers}–${g.maxPlayers} players` }),
+        el('span', { className: `tile-players${tooFew ? ' short' : ''}`, textContent: g.playersLabel ?? (g.minPlayers === 1 ? `1–${g.maxPlayers} players` : `${g.minPlayers}–${g.maxPlayers} players`) }),
       );
       if (canPick) b.onclick = () => send({ t: 'choose', game: g.id });
       return b;

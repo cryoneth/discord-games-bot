@@ -26,9 +26,12 @@ Privacy-focused party games that run entirely inside Discord, built to be safe f
 | 🚫 **Forbidden Words** | Two teams. The describer explains a word without five banned words, by voice or typed clues. Teammates guess, and the other team sees the card and buzzes slips. Typed clues are checked automatically. General and crypto/DeFi decks | Activity |
 | 🚦 **Mass Reaction** | Up to 100 players. The pad turns red, then green at a random moment. Tap too early, miss it, or be among the slowest (20/30/50%, host's choice) and you're out. Reaction time is measured on each player's screen, so lag doesn't count | Activity |
 | ⚡ **Quiz Arena** | Live multiple-choice quizzes with speed scoring and streaks. Two built-in crypto/DeFi quizzes, plus an in-app editor (with JSON import/export) so members can write quizzes for their server | Activity |
+| ♟️ **Chess** | Clocked 1v1 games (1+0 up to 15+10) between people in the call, with spectating. Plus **arena tournaments for up to 50 players** that moderators schedule ahead of time, Lichess style: sign up early or late, get paired automatically while it runs, win 2 / draw 1, two wins in a row doubles your points, berserk for +1. Tournament players can be in different voice channels | Activity |
 | 📈 **Perp Arena** | Trading simulator with play money on a fictional token: long/short with leverage, liquidations, funding, fees, stop-loss/take-profit, a safe lending vault and a risky farm that can get exploited. Scripted market scenarios with news. Ends with a personal debrief of what went right or wrong | Activity |
 
 **Activity games** run in one Discord Activity: `/play` (or `/draw`) opens it in a voice channel, the host picks a game, and everyone in the call plays. The host can end a game early and switch to another between games.
+
+**Chess tournaments.** A moderator schedules one with `/tournament create name:"Friday Blitz" start:"2026-12-01 19:00" utc_offset:+1 time_control:3+2 duration:60`, or with **+ New tournament** on the Chess screen of the Activity (that form uses each moderator's local time). The bot announces it in the chosen channel. Members sign up with `/tournament join` or in the Activity, and see it under `/tournament list`. At the start time it begins on its own: everyone on the Chess screen in any voice channel of the server is paired automatically, over and over, until time runs out. Final standings are posted in the channel and counted for the chess leaderboard. Players who don't make their first move in 30 seconds, or leave mid-game for a minute, lose that game and are paused until they tap Resume. Tournaments are saved, so they survive a bot restart (games in progress at that moment are lost).
 
 Also: `/menu` (an interactive guide: pick any game from a dropdown to see how it works, how many can play and how to start it), `/help` (every game and the house rules on one page), `/leaderboard`, `/privacy`, and `/server-data` for server managers.
 
@@ -59,6 +62,9 @@ These rules keep the boards fair:
 | **Take control** of an Activity (become its host) or **Stop game** from inside it | Moderators |
 | `/server-data quizzes`: see every custom quiz and its author | **Manage Server** only (hidden from everyone else) |
 | Write and edit your own quizzes in Quiz Arena | Everyone |
+| Play chess, join or leave a tournament (`/tournament join`, or in the Activity) | Everyone |
+| **Create, edit, start early, kick players from and remove chess tournaments** (`/tournament create/edit/start-now/kick/remove`, or the buttons in the Activity) | Moderators |
+| **Abort or decide any chess game** (abort, white wins, black wins, draw) from inside the Activity | Moderators |
 | `/server-data delete-quiz`: delete a custom quiz (members can't delete quizzes, not even their own) | **Manage Server** only |
 | `/server-data wipe`: delete all of the server's scores and quizzes | **Manage Server** only, with a confirm button |
 | Delete or stop recording **your own** scores (`/privacy forget-me`, `/privacy opt-out`) | Each member, for themselves only. Kept because privacy laws such as GDPR give people the right to erase their own data |
@@ -112,7 +118,7 @@ Discord documents these settings only in outline. If an app still shows up in `#
 ## Privacy & security at a glance
 
 - **Cannot read your chat.** Only the `Guilds` gateway intent is used. There is no Message Content access, and the bot can't see members or presence either.
-- **Minimal data.** The only things stored are per-server score totals keyed by user ID (also split by day for the daily, weekly and monthly boards), and quizzes members write for their server (with the author's user ID). Drawings, guesses, clues, votes, trades and in-game chat are kept in memory only. Old data is deleted automatically after 90 days by default.
+- **Minimal data.** The only things stored are per-server score totals keyed by user ID (also split by day for the daily, weekly and monthly boards), quizzes members write for their server (with the author's user ID), and chess tournaments with each entrant's user ID and tournament points. Drawings, guesses, clues, votes, trades and in-game chat are kept in memory only. Old data is deleted automatically after 90 days by default.
 - **User controls.** `/privacy my-data` exports a user's data, `/privacy forget-me` deletes it and `/privacy opt-out` stops tracking. Admins can delete all of a server's data with `/server-data wipe`.
 - **No pings.** Every message the bot posts has mentions disabled, so it can never ping `@everyone`, roles or users.
 - **Activity sandbox.** The Activity games run inside Discord's sandboxed iframe, and every request goes through Discord's proxy, so the server never sees players' IP addresses. It uses the `identify` OAuth scope only. Players are checked with Discord to confirm they're really in that Activity instance.
@@ -192,12 +198,13 @@ src/
   render/             board images and confetti GIFs (@napi-rs/canvas + gifenc)
   ui/card.ts          Components V2 message cards shared by every game
   games/              all chat games, duel/turn helpers, pure rules (logic.ts), session lock, content
-  commands/           /play, /draw, /menu, /help, /leaderboard, /privacy, /server-data, /mod
+  commands/           /play, /draw, /menu, /help, /leaderboard, /privacy, /server-data, /mod, /tournament
   activity/server.ts  HTTP + WebSocket server for the Activity (auth, rate limits)
   activity/hub.ts     one per Activity instance: players, host, game picker, message envelope
   activity/base.ts    shared room plumbing for Activity games (seats, host, chat, timers)
   activity/room.ts    Sketch Party logic
-  activity/games/     Odd One Out, Forbidden Words, Quiz Arena, Perp Arena (+ pure market engine), Mass Reaction
+  activity/games/     Odd One Out, Forbidden Words, Quiz Arena, Perp Arena (+ pure market engine), Mass Reaction, Chess
+  activity/chess/     chess clocks and rules (chess.js), arena scoring and pairing, the tournament service
   activity/data/      word pairs, cards and built-in quizzes
   shared/             message types shared with the Activity frontend, one file per game
 activity/             Activity frontend (Vite, vanilla TypeScript): hub in main.ts, one screen per game

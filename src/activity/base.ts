@@ -20,6 +20,8 @@ export interface GameRoom {
   handle(userId: string, msg: { t: string } & Record<string, unknown>): void;
   /** Re-send everyone's state (e.g. the host changed). */
   refresh?(): void;
+  /** A moderator stopped the game (before `dispose`). Games that outlive the room clean up here. */
+  stopByModerator?(): void;
   dispose(): void;
 }
 
@@ -30,6 +32,8 @@ export interface RoomContext {
   onGameEnd(results: RoomResult[]): void;
   /** Who the host is, when the room runs inside a hub. */
   hostId?(): string | null;
+  /** Whether a player is a server moderator. */
+  isMod?(userId: string): boolean;
 }
 
 export interface Seat {

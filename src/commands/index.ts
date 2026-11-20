@@ -10,6 +10,7 @@ import { wordguessCommand } from '../games/wordguess.js';
 import { wyrCommand } from '../games/wyr.js';
 import { menuCommand } from './menu.js';
 import { modCommand } from './mod.js';
+import { tournamentCommand } from './tournament.js';
 import { drawCommand, helpCommand, leaderboardCommand, playCommand, privacyCommand, serverDataCommand } from './meta.js';
 
 export const commands = [
@@ -38,4 +39,5 @@ export const commands = [
   privacyCommand,
   serverDataCommand,
   modCommand,
+  tournamentCommand,
 ];

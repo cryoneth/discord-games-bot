@@ -99,7 +99,7 @@ export class Hub {
         if (!this.room) return;
         // Moderators may also stop a game that is in progress.
         if (this.canSwitch(userId)) return this.toMenu(null);
-        if (member.mod) return this.toMenu(`${member.name} (moderator) stopped the game.`);
+        if (member.mod) return this.toMenu(`${member.name} (moderator) stopped the game.`, true);
         return;
       case 'takeover':
         if (!member.mod || this.hostId() === userId) return;
@@ -117,7 +117,11 @@ export class Hub {
 
   /** Moderator stop from Discord (`/mod stop`): back to the game picker, nothing scored. */
   forceStop(text: string): void {
-    this.toMenu(text);
+    this.toMenu(text, true);
+  }
+
+  isMod(userId: string): boolean {
+    return this.members.get(userId)?.mod ?? false;
   }
 
   /** Who is here, for `/mod games`. */
@@ -138,7 +142,8 @@ export class Hub {
     return allowed && (!this.room || this.room.idle);
   }
 
-  private toMenu(notice: string | null): void {
+  private toMenu(notice: string | null, byMod = false): void {
+    if (byMod) this.room?.stopByModerator?.();
     this.room?.dispose();
     this.room = null;
     this.game = null;

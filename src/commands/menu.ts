@@ -58,8 +58,7 @@ export const GUIDE: GuideEntry[] = [
   { id: 'quiz', name: 'Quiz Arena', kind: 'voice', short: 'Live quizzes, and you can write your own', players: '1–16 players', how: 'Fast multiple-choice quizzes with speed scoring and streaks. Play a built-in quiz or write your own in the editor; it’s saved for everyone on this server.', start: VOICE_START },
   { id: 'market', name: 'Perp Arena', kind: 'voice', short: 'A trading simulator with play money', players: '1–16 players', how: 'Trade a fictional token with play money: long or short with leverage, funding, liquidations and yield farms. Ends with a personal debrief.', start: VOICE_START },
   { id: 'massreaction', name: 'Mass Reaction', kind: 'voice', short: 'Tap when it turns green. Built for big crowds', players: '2–100 players', how: 'The pad turns red, then green at a random moment. Tap too early, miss it, or be among the slowest and you’re out. Last one left wins.', start: VOICE_START },
-  // ── Info ──
-  { id: 'rules', name: 'Leaderboards & house rules', kind: 'info', short: 'How scoring works, and who can do what', players: '', how: '', start: '' },
+  { id: 'chess', name: 'Chess', kind: 'voice', short: 'Clocked 1v1 games and arena tournaments up to 50', players: '2 per board · tournaments up to 50', how: 'Challenge someone in the call to a clocked game (1+0 up to 15+10), or watch the boards. Moderators schedule arena tournaments ahead of time: join early or late, and you’re paired automatically while it runs. Win 2, draw 1, two wins in a row doubles your points, and berserk (half your clock) adds a point to a win.', start: `${VOICE_START} Tournaments: \`/tournament list\` and \`/tournament join\`.` },
 ];
 
 const KIND_LABEL: Record<Kind, string> = { group: 'Group game in chat', duel: 'Duel in chat', voice: 'Voice channel game', info: '' };
@@ -77,6 +76,8 @@ function overview(): string {
     '',
     '**Voice channel games** (`/play` in a voice channel)',
     list('voice'),
+    '',
+    rulesText(),
   ].join('\n');
 }
 
@@ -92,6 +93,7 @@ function rulesText(): string {
     '• Everyone can start and join any game, and write quizzes in Quiz Arena.',
     '• Only the person who started a game (or a server manager) can stop it.',
     '• Only server managers can delete quizzes or the server’s data.',
+    '• Moderators organise chess tournaments (`/tournament`) and can stop or decide any game.',
     '• `/privacy` lets you see or delete your own records.',
   ].join('\n');
 }
@@ -119,7 +121,7 @@ function dropdown(id: string, selected: string | null) {
       .setCustomId(id)
       .setPlaceholder('Pick a game to learn more…')
       .addOptions(
-        { label: 'Overview', value: 'overview', description: 'All games at a glance', default: selected === null },
+        { label: 'Overview & house rules', value: 'overview', description: 'All games at a glance, leaderboards and who can do what', default: selected === null },
         ...GUIDE.map((g) => ({
           label: g.name,
           value: g.id,

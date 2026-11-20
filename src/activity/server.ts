@@ -10,6 +10,7 @@ import type { ScoreStore } from '../store.js';
 import { isModeratorInGuild } from '../moderation.js';
 import { log } from '../util/log.js';
 import { TokenBucket } from '../util/ratelimit.js';
+import type { ChessService } from './chess/service.js';
 import { gameFactory } from './games/index.js';
 import { Hub, type HubConn } from './hub.js';
 import { cleanText, type RoomResult } from './room.js';
@@ -53,9 +54,10 @@ interface Deps {
   config: Config;
   store: ScoreStore;
   discord: Client;
+  chess: ChessService;
 }
 
-export function startWebServer({ config, store, discord }: Deps) {
+export function startWebServer({ config, store, discord, chess }: Deps) {
   const rooms = new Map<string, Hub>();
   const tokenBuckets = new Map<string, TokenBucket>();
   const allowedOrigin = `https://${config.clientId}.discordsays.com`;
@@ -239,7 +241,7 @@ export function startWebServer({ config, store, discord }: Deps) {
     })().catch((err) => log.warn(`Could not post ${game} results`, err));
   };
 
-  const createGame = gameFactory({ store, onGameEnd });
+  const createGame = gameFactory({ store, chess, onGameEnd });
 
   interface Identity {
     id: string;

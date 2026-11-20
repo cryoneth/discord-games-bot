@@ -39,13 +39,14 @@ const GAME_CHOICES: { name: string; value: GameId }[] = [
   { name: 'Quiz Arena', value: 'quiz' },
   { name: 'Perp Arena', value: 'market' },
   { name: 'Mass Reaction', value: 'massreaction' },
+  { name: 'Chess', value: 'chess' },
 ];
 
 const PERIOD_LABELS: Record<Period, string> = { day: 'Today', week: 'This week', month: 'This month', all: 'All time' };
 
 export const playCommand = new SlashCommandBuilder()
   .setName('play')
-  .setDescription('Open the party games Activity: drawing, Odd One Out, Forbidden Words, quizzes, trading sim')
+  .setDescription('Open the party games Activity: drawing, Odd One Out, Forbidden Words, quizzes, trading sim, chess')
   .setContexts(InteractionContextType.Guild);
 
 /** Kept for people used to it; opens the same Activity. */
@@ -144,7 +145,8 @@ export function helpText(): string {
     '**Duels** (challenge someone)',
     '`/tictactoe` · `/fourinarow` · `/fiveinarow` · `/dotsandboxes` · `/matchsticks` · `/mancala` · `/higherlower` · `/hangman` · `/numberduel` · `/reaction` · `/rps`',
     '**Voice channel games** (`/play`, or the 🚀 Activities button in a voice call)',
-    'Sketch Party · Odd One Out · Forbidden Words · Quiz Arena · Perp Arena · Mass Reaction (up to 100 players)',
+    'Sketch Party · Odd One Out · Forbidden Words · Quiz Arena · Perp Arena · Mass Reaction (up to 100 players) · Chess',
+    '**Chess tournaments** `/tournament list` · `/tournament join` (moderators: `create`, `edit`, `kick`, `remove`)',
     '',
     '**House rules**',
     '• Anyone can join a game.',
@@ -170,7 +172,8 @@ export function privacyText(retentionDays: number): string {
     '**What this bot stores**',
     '• Your Discord user ID with your score totals, wins and games played, separately for each server (and per day, for the daily, weekly and monthly boards).',
     '• Quizzes you write in Quiz Arena, with your user ID as the author, so only you can edit or delete them.',
-    `• Nothing else. Scores not updated, and quizzes not edited or played, for **${retentionDays} days** are deleted automatically.`,
+    '• Chess tournaments you join: your user ID with your tournament points, wins, draws and losses. Moderators who create a tournament are stored as its organiser.',
+    `• Nothing else. Scores not updated, quizzes not edited or played, and tournaments finished more than **${retentionDays} days** ago are deleted automatically.`,
     '',
     "**What it never stores or sees**",
     '• Chat messages: the bot cannot read your server\'s messages at all (no Message Content access).',
