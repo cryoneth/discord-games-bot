@@ -4,7 +4,7 @@ Privacy-focused party games that run entirely inside Discord, built to be safe f
 
 | Game | How it's played | Where |
 |---|---|---|
-| 🧠 **Trivia** | `/trivia start`: multiple-choice questions answered with buttons, speed bonus, scoreboard | Chat |
+| 🧠 **Trivia** | `/trivia start`: multiple-choice questions in 9 categories, answered with buttons, speed bonus, scoreboard | Chat |
 | ⚔️ **Battle royale** | `/royale start`: players join with a button, the bot narrates rounds until one is left | Chat |
 | 🎯 **Last One Standing** | `/laststanding start`: up to 250 players. Each round everyone secretly calls a coin flip, card colour, die, number or trap door. Wrong calls and no-shows are out until one player is left | Chat |
 | 🐑 **Minority Wins** | `/minority start`: up to 250 players vote on a question with no right answer, and only the least popular answer survives. Ties keep everyone in, and the final two share the win | Chat |
@@ -25,7 +25,7 @@ Privacy-focused party games that run entirely inside Discord, built to be safe f
 | 🕵️ **Odd One Out** | Everyone gets the same secret word except one player, who gets a similar one and doesn't know it. Players give clues in turn, discuss, then vote. A caught odd one can still steal points by guessing the real word. General and crypto/DeFi word decks | Activity |
 | 🚫 **Forbidden Words** | Two teams. The describer explains a word without five banned words, by voice or typed clues. Teammates guess, and the other team sees the card and buzzes slips. Typed clues are checked automatically. General and crypto/DeFi decks | Activity |
 | 🚦 **Mass Reaction** | Up to 100 players. The pad turns red, then green at a random moment. Tap too early, miss it, or be among the slowest (20/30/50%, host's choice) and you're out. Reaction time is measured on each player's screen, so lag doesn't count | Activity |
-| ⚡ **Quiz Arena** | Live multiple-choice quizzes with speed scoring and streaks. Two built-in crypto/DeFi quizzes, plus an in-app editor (with JSON import/export) so members can write quizzes for their server | Activity |
+| ⚡ **Quiz Arena** | Live multiple-choice quizzes with speed scoring and streaks. 15 built-in quizzes (crypto basics, perps, DeFi, scam spotting, FTX, crashes and hacks, slang, memes, Bitcoin history, pop culture, general knowledge, science, geography, tech), plus an in-app editor (with JSON import/export) so members can write quizzes for their server | Activity |
 | ♟️ **Chess** | Clocked 1v1 games (1+0 up to 15+10) between people in the call, with spectating. Plus **arena tournaments for up to 50 players** that moderators schedule ahead of time, Lichess style: sign up early or late, get paired automatically while it runs, win 2 / draw 1, two wins in a row doubles your points, berserk for +1. Tournament players can be in different voice channels | Activity |
 | 📈 **Perp Arena** | Trading simulator with play money on a fictional token: long/short with leverage, liquidations, funding, fees, stop-loss/take-profit, a safe lending vault and a risky farm that can get exploited. Scripted market scenarios with news. Ends with a personal debrief of what went right or wrong | Activity |
 

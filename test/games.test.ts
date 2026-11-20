@@ -4,7 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { helpText } from '../src/commands/meta.js';
-import { TRIVIA } from '../src/games/data/trivia.js';
+import { BUILTIN_QUIZZES } from '../src/activity/data/quizzes.js';
+import { sanitizeQuiz } from '../src/shared/quiz.js';
+import { CATEGORY_LABELS, TRIVIA } from '../src/games/data/trivia.js';
 import { PAIR_DAILY_LIMIT, takePairSlot } from '../src/games/duel.js';
 import { JUST_FOR_FUN } from '../src/shared/protocol.js';
 import { simulate } from '../src/games/royale.js';
@@ -35,6 +37,22 @@ test('trivia questions are well-formed', () => {
   for (const q of TRIVIA) {
     assert.equal(new Set(q.answers).size, 4, `duplicate answers: ${q.question}`);
     assert.ok(q.answers.every((a) => a.length <= 76), `answer too long for a button: ${q.question}`);
+  }
+  assert.equal(new Set(TRIVIA.map((q) => q.question)).size, TRIVIA.length, 'duplicate trivia question');
+  // A game can ask up to 20 questions from one category.
+  for (const cat of Object.keys(CATEGORY_LABELS)) {
+    assert.ok(TRIVIA.filter((q) => q.category === cat).length >= 20, `too few questions in ${cat}`);
+  }
+});
+
+test('built-in quizzes pass the quiz validator unchanged', () => {
+  assert.equal(new Set(BUILTIN_QUIZZES.map((q) => q.id)).size, BUILTIN_QUIZZES.length, 'duplicate quiz id');
+  for (const quiz of BUILTIN_QUIZZES) {
+    assert.ok(quiz.id.startsWith('builtin:'), quiz.id);
+    const clean = sanitizeQuiz(quiz);
+    assert.notEqual(typeof clean, 'string', `${quiz.title}: ${String(clean)}`);
+    assert.deepEqual(clean, { title: quiz.title, questions: quiz.questions }, `${quiz.title} was altered by the validator`);
+    for (const q of quiz.questions) assert.equal(new Set(q.answers).size, q.answers.length, `duplicate answers: ${q.q}`);
   }
 });
 
