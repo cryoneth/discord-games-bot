@@ -15,15 +15,15 @@
   "license": "MIT",
   "type": "module",
   "dependencies": {
-    "@napi-rs/canvas": "1.0.13",
+    "@napi-rs/canvas": "1.2.0",
     "chess.js": "1.4.0",
     "discord.js": "^14.28.1",
     "gifenc": "1.0.3",
-    "ws": "^8.22.2"
+    "ws": "^8.23.0"
   },
   "devDependencies": {
     "@discord/embedded-app-sdk": "^2.5.0",
-    "@types/node": "^22.20.5",
+    "@types/node": "^26.6.6",
     "@types/ws": "^8.18.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
