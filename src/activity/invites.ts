@@ -8,6 +8,8 @@ const SETTLE_MS = 3000;
 /** A relaunch in the same channel within this window reuses the last invite instead of posting a new one. */
 const REUSE_MS = 10 * 60_000;
 const MAX_LISTED = 10;
+/** How long a `/play` is remembered while Discord opens the Activity. */
+const LAUNCH_MS = 2 * 60_000;
 
 interface Live {
   game: GameId | null;
@@ -18,6 +20,8 @@ interface Live {
 interface ChannelInvite {
   guildId: string;
   hub: Hub | null;
+  /** Text channel the invite goes to, picked when it is first posted. */
+  target: string | null;
   message: Message | null;
   /** Rendered state last sent, to skip edits that change nothing. */
   shown: string;
@@ -28,21 +32,34 @@ interface ChannelInvite {
 }
 
 /**
- * Keeps one invite message per channel while an Activity runs there: posted
- * when it opens, edited as players come and go or the host picks a game, and
- * marked as ended once everyone has left.
+ * Keeps one invite message per voice channel while an Activity runs there:
+ * posted when it opens, edited as players come and go or the host picks a
+ * game, and marked as ended once everyone has left.
+ *
+ * The invite goes to the text channel where `/play` was typed (or the server's
+ * system channel), never the voice channel's own chat: messages there make
+ * Discord desktop shrink the Activity for the people playing.
  */
 export class ActivityInvites {
   private readonly byChannel = new Map<string, ChannelInvite>();
+  /** `guildId:userId` → text channel of a recent `/play`. */
+  private readonly launches = new Map<string, { channelId: string; at: number }>();
 
   constructor(private readonly discord: Client) {}
+
+  /** Someone ran `/play` in this text channel; their Activity's invite goes there. */
+  noteLaunch(guildId: string, userId: string, channelId: string): void {
+    const now = Date.now();
+    for (const [key, l] of this.launches) if (now - l.at > LAUNCH_MS) this.launches.delete(key);
+    this.launches.set(`${guildId}:${userId}`, { channelId, at: now });
+  }
 
   track(hub: Hub): void {
     const channelId = hub.channelId;
     if (!channelId || !hub.guildId) return; // only known when the instance is verified
     let inv = this.byChannel.get(channelId);
     if (!inv || (inv.endedAt && Date.now() - inv.endedAt > REUSE_MS)) {
-      inv = { guildId: hub.guildId, hub: null, message: null, shown: '', endedAt: 0, timer: null, busy: false, again: false };
+      inv = { guildId: hub.guildId, hub: null, target: null, message: null, shown: '', endedAt: 0, timer: null, busy: false, again: false };
       this.byChannel.set(channelId, inv);
     }
     inv.hub = hub;
@@ -110,7 +127,8 @@ export class ActivityInvites {
         });
       }
       if (!inv.message) {
-        const channel = await this.discord.channels.fetch(channelId).catch(() => null);
+        inv.target ??= this.pickTarget(inv.guildId, channelId, live.players);
+        const channel = inv.target ? await this.discord.channels.fetch(inv.target).catch(() => null) : null;
         if (!channel || !channel.isSendable()) {
           inv.shown = shown; // no access here; don't keep retrying
           return;
@@ -131,6 +149,19 @@ export class ActivityInvites {
         if (!other.hub && other.endedAt && Date.now() - other.endedAt > REUSE_MS && !other.timer && !other.busy) this.byChannel.delete(id);
       }
     }
+  }
+
+  /** The text channel of the player who ran `/play`, else the server's system channel. */
+  private pickTarget(guildId: string, voiceId: string, players: string[]): string | null {
+    for (const id of players) {
+      const key = `${guildId}:${id}`;
+      const l = this.launches.get(key);
+      if (!l || Date.now() - l.at > LAUNCH_MS) continue;
+      this.launches.delete(key);
+      if (l.channelId !== voiceId) return l.channelId;
+    }
+    const system = this.discord.guilds?.cache.get(guildId)?.systemChannelId ?? null;
+    return system && system !== voiceId ? system : null;
   }
 }
 

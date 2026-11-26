@@ -382,6 +382,8 @@ export function startWebServer({ config, store, discord, chess }: Deps) {
   server.listen(config.port, config.host, () => log.info(`Web server listening on ${config.host}:${config.port}`));
 
   return {
+    /** `/play` was typed in this text channel: post the Activity's invite there. */
+    noteLaunch: (guildId: string, userId: string, channelId: string) => invites.noteLaunch(guildId, userId, channelId),
     /** Running activities in a server, for `/mod`. */
     activities: (guildId: string) =>
       [...rooms.values()].filter((r) => r.guildId === guildId && r.connectedCount > 0).map((r) => ({ channelId: r.channelId, ...r.summary() })),

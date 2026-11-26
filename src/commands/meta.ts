@@ -95,9 +95,14 @@ export const helpCommand = new SlashCommandBuilder()
   .setDescription('Every game, how to start it, and the house rules')
   .setContexts(InteractionContextType.Guild);
 
-export async function handleLaunch(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function handleLaunch(
+  interaction: ChatInputCommandInteraction,
+  noteLaunch?: (guildId: string, userId: string, channelId: string) => void,
+): Promise<void> {
   try {
     await interaction.launchActivity();
+    // The Activity's invite is posted where /play was typed, for the whole server to see.
+    if (interaction.guildId) noteLaunch?.(interaction.guildId, interaction.user.id, interaction.channelId);
   } catch (err) {
     log.warn('launchActivity failed', err);
     await interaction.reply({

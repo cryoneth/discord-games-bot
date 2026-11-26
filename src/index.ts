@@ -74,7 +74,7 @@ async function route(interaction: ChatInputCommandInteraction): Promise<void> {
       return handleWouldYouRather(interaction);
     case 'play':
     case 'draw':
-      return handleLaunch(interaction);
+      return handleLaunch(interaction, web.noteLaunch);
     case 'leaderboard':
       return handleLeaderboard(interaction, store);
     case 'help':

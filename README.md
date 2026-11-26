@@ -79,7 +79,7 @@ If your server blocks slash commands for members, they can still play most games
 
 - **Buttons don't need command permission.** A moderator starts `/trivia start`, `/royale start`, `/laststanding start`, `/minority start`, `/wordguess start` or `/wouldyourather`, and everyone joins and plays with buttons.
 - **Activity games don't need commands either.** Members open them from the 🚀 **Activities** button in a voice channel. They only need the **Use Activities** permission there.
-- **The bot invites people in.** When the Activity opens, the bot posts an invite in that voice channel's chat with a **Join** button. It updates as players join and the host picks a game, and says when the games have ended. It needs **Send Messages** and **Embed Links** in the voice channel, like the results posts.
+- **The bot invites people in.** When the Activity opens, the bot posts an invite with a **Join** button in the text channel where `/play` was typed (or the server's system channel when it was started from the 🚀 Activities menu), so the whole server sees it. It updates as players join and the host picks a game, and says when the games have ended. It never posts in the voice channel's own chat, because that makes Discord desktop shrink the Activity for everyone playing. It needs **Send Messages** and **Embed Links** in that text channel.
 - **Duels and `/leaderboard` need commands**, so they're mod-only in this setup.
 
 ### Option B: allow this bot's commands, and only this bot's
